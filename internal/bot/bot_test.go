@@ -106,6 +106,41 @@ func TestIgnoresStrangers(t *testing.T) {
 	}
 }
 
+func TestDevPromptKeepsReplyText(t *testing.T) {
+	cases := []struct {
+		name string
+		msg  *models.Message
+		want string
+	}{
+		{
+			name: "реплай с текстом",
+			msg:  &models.Message{ReplyToMessage: &models.Message{Text: "вот такой баг"}},
+			want: "Задача:\nпочини\n\nСообщение, на которое ответили (его текст):\nвот такой баг",
+		},
+		{
+			name: "реплай на подпись к фото",
+			msg:  &models.Message{ReplyToMessage: &models.Message{Caption: "скриншот ошибки"}},
+			want: "Задача:\nпочини\n\nСообщение, на которое ответили (его текст):\nскриншот ошибки",
+		},
+		{
+			name: "без реплая",
+			msg:  &models.Message{},
+			want: "почини",
+		},
+		{
+			name: "реплай без текста",
+			msg:  &models.Message{ReplyToMessage: &models.Message{}},
+			want: "почини",
+		},
+	}
+
+	for _, item := range cases {
+		if got := devPrompt(item.msg, "почини"); got != item.want {
+			t.Errorf("%s: devPrompt = %q, хотели %q", item.name, got, item.want)
+		}
+	}
+}
+
 func TestMessageText(t *testing.T) {
 	cases := []struct {
 		name string

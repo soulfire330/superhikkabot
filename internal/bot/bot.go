@@ -202,8 +202,9 @@ func (b *Bot) dev(ctx context.Context, msg *models.Message, task string) {
 	}
 
 	// Каждый dev — новая pi-сессия; реплай на ответ её продолжит.
+	prompt := devPrompt(msg, task)
 	if !b.agentRun(ctx, msg, func() (harness.Reply, error) {
-		return b.deps.Harness.Run(ctx, msg.Chat.ID, task)
+		return b.deps.Harness.Run(ctx, msg.Chat.ID, prompt)
 	}) {
 		return
 	}
@@ -214,6 +215,21 @@ func (b *Bot) dev(ctx context.Context, msg *models.Message, task string) {
 
 	b.send(ctx, msg, "Building myself with the new changes…")
 	go b.deploy(task)
+}
+
+// devPrompt добавляет к задаче текст сообщения, на которое ответили: агент
+// не видит переписку Telegram, и без этого реплай терял бы весь контекст.
+func devPrompt(msg *models.Message, task string) string {
+	if msg == nil || msg.ReplyToMessage == nil {
+		return task
+	}
+
+	quoted := messageText(msg.ReplyToMessage)
+	if quoted == "" {
+		return task
+	}
+
+	return "Задача:\n" + task + "\n\nСообщение, на которое ответили (его текст):\n" + quoted
 }
 
 // continueSession уводит реплай на сообщение агента в его сессию.
