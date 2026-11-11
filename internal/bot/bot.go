@@ -59,7 +59,7 @@ func (b *Bot) Handle(ctx context.Context, msg *models.Message) {
 	if msg == nil || msg.From == nil || msg.From.IsBot {
 		return
 	}
-	if !b.deps.Config.Allows(msg.Chat.ID) {
+	if !b.allowed(msg) {
 		return
 	}
 
@@ -102,7 +102,7 @@ func (b *Bot) Handle(ctx context.Context, msg *models.Message) {
 		return
 	}
 
-	private := string(msg.Chat.Type) == "private"
+	private := isPrivate(msg)
 
 	if link := firstLink(text); link != "" {
 		if media.Supported(link) {
@@ -132,6 +132,20 @@ func (b *Bot) Handle(ctx context.Context, msg *models.Message) {
 	if isReplyToBot(msg, b.deps.Dialog) || mentioned || private {
 		b.answer(ctx, msg, text)
 	}
+}
+
+// allowed — первая и единственная проверка доступа. Всё, что её не прошло,
+// игнорируется молча, даже /start.
+func (b *Bot) allowed(msg *models.Message) bool {
+	if b.deps.Config.Allows(msg.Chat.ID) {
+		return true
+	}
+	// Админу разрешена личка: его id уже в конфиге, дублировать в allowed_chats незачем.
+	return isPrivate(msg) && b.deps.Config.IsAdmin(msg.From.ID)
+}
+
+func isPrivate(msg *models.Message) bool {
+	return string(msg.Chat.Type) == "private"
 }
 
 func (b *Bot) start(ctx context.Context, msg *models.Message) {

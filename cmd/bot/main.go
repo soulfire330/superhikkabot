@@ -216,7 +216,11 @@ func main() {
 	// здесь — показание откатиться на прошлый бинарник.
 	harness.MarkBooted()
 
-	logger.Printf("слушаю обновления (чатов в белом списке: %d)", len(cfg.Telegram.AllowedChats))
+	if len(cfg.Telegram.AllowedChats) == 0 && len(cfg.Telegram.AdminUsers) == 0 {
+		logger.Println("белый список пуст: бот не ответит никому, впиши allowed_chats или admin_users")
+	}
+	logger.Printf("слушаю обновления (чатов в белом списке: %d, админов: %d)",
+		len(cfg.Telegram.AllowedChats), len(cfg.Telegram.AdminUsers))
 	tgClient.API().Start(rootCtx)
 
 	logger.Println("остановлено")

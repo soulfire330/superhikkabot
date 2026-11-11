@@ -188,11 +188,9 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// Allows сообщает, работает ли бот в этом чате. Пустой список — работать везде.
+// Allows сообщает, работает ли бот в этом чате. Пустой список — нигде:
+// бот молчит, пока чат явно не разрешён.
 func (c *Config) Allows(chatID int64) bool {
-	if len(c.Telegram.AllowedChats) == 0 {
-		return true
-	}
 	for _, id := range c.Telegram.AllowedChats {
 		if id == chatID {
 			return true

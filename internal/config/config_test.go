@@ -57,6 +57,14 @@ timeout = "3m"
 	}
 }
 
+func TestAllowsNothingWithoutList(t *testing.T) {
+	cfg := &Config{}
+
+	if cfg.Allows(42) || cfg.Allows(-100) {
+		t.Error("пустой allowed_chats должен закрывать бота целиком")
+	}
+}
+
 func TestLoadWithoutTokenFails(t *testing.T) {
 	t.Setenv("TELEGRAM_BOT_TOKEN", "")
 

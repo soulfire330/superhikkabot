@@ -1,6 +1,13 @@
 package bot
 
-import "testing"
+import (
+	"context"
+	"testing"
+
+	"github.com/go-telegram/bot/models"
+
+	"github.com/soulfire330/superhikkabot/internal/config"
+)
 
 func TestStripMention(t *testing.T) {
 	cases := []struct {
@@ -55,5 +62,46 @@ func TestFirstLink(t *testing.T) {
 		if got := firstLink(text); got != want {
 			t.Errorf("firstLink(%q) = %q, хотим %q", text, got, want)
 		}
+	}
+}
+
+func TestAllowed(t *testing.T) {
+	router := New(Deps{Config: &config.Config{Telegram: config.Telegram{
+		AllowedChats: []int64{-100},
+		AdminUsers:   []int64{5},
+	}}})
+
+	cases := []struct {
+		name string
+		msg  *models.Message
+		want bool
+	}{
+		{"разрешённый чат", &models.Message{Chat: models.Chat{ID: -100}, From: &models.User{ID: 1}}, true},
+		{"личка админа", &models.Message{Chat: models.Chat{ID: 5, Type: "private"}, From: &models.User{ID: 5}}, true},
+		{"админ в чужой группе", &models.Message{Chat: models.Chat{ID: -200, Type: "supergroup"}, From: &models.User{ID: 5}}, false},
+		{"посторонний в личке", &models.Message{Chat: models.Chat{ID: 9, Type: "private"}, From: &models.User{ID: 9}}, false},
+		{"посторонний в группе", &models.Message{Chat: models.Chat{ID: -200}, From: &models.User{ID: 9}}, false},
+	}
+
+	for _, item := range cases {
+		if got := router.allowed(item.msg); got != item.want {
+			t.Errorf("%s: allowed = %v, хотели %v", item.name, got, item.want)
+		}
+	}
+}
+
+func TestIgnoresStrangers(t *testing.T) {
+	router := New(Deps{Config: &config.Config{Telegram: config.Telegram{AllowedChats: []int64{-100}}}})
+
+	// Зависимости роутера nil: если посторонний проскочит фильтр, будет паника.
+	// Ничего не должно произойти — в этом и проверка.
+	messages := []*models.Message{
+		{Chat: models.Chat{ID: 7, Type: "private"}, From: &models.User{ID: 7}, Text: "/start"},
+		{Chat: models.Chat{ID: -200}, From: &models.User{ID: 8}, Text: "/dev добавь ping"},
+		{Chat: models.Chat{ID: 9, Type: "private"}, From: &models.User{ID: 9}, Text: "привет"},
+	}
+
+	for _, msg := range messages {
+		router.Handle(context.Background(), msg)
 	}
 }
