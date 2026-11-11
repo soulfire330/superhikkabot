@@ -4,7 +4,9 @@ package llm
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -24,6 +26,18 @@ const (
 	answerMaxTokens      = 800
 	userAgent            = "github.com/soulfire330/superhikkabot/1.0"
 )
+
+// sessionID — обязательный заголовок x-opencode-session для маршрутизации запросов
+// в OpenCode Go. Генерируется один раз на процесс.
+var sessionID = newSessionID()
+
+func newSessionID() string {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return fmt.Sprintf("superhikka-%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(buf)
+}
 
 const systemPrompt = `Ты полезный ассистент в Telegram. Пиши сжато: 3-6 предложений или
 2-5 пунктов, не больше 700 символов, если в вопросе не просят подробный разбор.
@@ -346,6 +360,8 @@ func (c *Client) post(ctx context.Context, body map[string]any) (*chatResponse, 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("x-opencode-session", sessionID)
+	req.Header.Set("x-opencode-client", "superhikkabot")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
