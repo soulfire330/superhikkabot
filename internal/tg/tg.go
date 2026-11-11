@@ -208,6 +208,36 @@ func (c *Client) Edit(ctx context.Context, chatID int64, messageID int, text str
 	return nil
 }
 
+// Replace переписывает сообщение целиком: первый чанк уходит правкой,
+// остальные — новыми сообщениями. Возвращает id всех частей.
+func (c *Client) Replace(ctx context.Context, chatID int64, messageID int, text string) ([]int, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil, nil
+	}
+
+	chunks := split(text)
+	if err := c.Edit(ctx, chatID, messageID, chunks[0]); err != nil {
+		return nil, err
+	}
+
+	ids := []int{messageID}
+	var tail []int
+	for _, chunk := range chunks[1:] {
+		msg, err := c.sendChunk(ctx, chatID, 0, chunk)
+		if err != nil {
+			return ids, err
+		}
+		tail = append(tail, msg.ID)
+	}
+	ids = append(ids, tail...)
+
+	if len(tail) > 0 {
+		c.sent(chatID, tail, strings.Join(chunks[1:], "\n"), 0)
+	}
+	return ids, nil
+}
+
 // Delete удаляет сообщение. Ошибка не фатальна для вызывающего.
 func (c *Client) Delete(ctx context.Context, chatID int64, messageID int) error {
 	_, err := c.api.DeleteMessage(ctx, &bot.DeleteMessageParams{ChatID: chatID, MessageID: messageID})

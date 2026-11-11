@@ -193,14 +193,27 @@ func (b *Bot) dev(ctx context.Context, msg *models.Message, task string) {
 	}
 
 	b.deps.TG.Typing(ctx, msg.Chat.ID)
-	b.send(ctx, msg, "Принял, агент работает. Это может занять несколько минут.")
+
+	// Заглушка живёт одним сообщением: ответ приходит правкой, а не новым.
+	working := "Working…"
+	ids, err := b.deps.TG.Send(ctx, msg.Chat.ID, msg.ID, working)
+	placeholder := 0
+	if err != nil {
+		b.deps.Logger.Printf("telegram: отправка не удалась: %v", err)
+	}
+	if len(ids) > 0 {
+		placeholder = ids[0]
+	}
 
 	answer, err := b.deps.Harness.Run(ctx, msg.Chat.ID, task)
 	if err != nil {
-		b.send(ctx, msg, "⚠️ "+tg.Escape(err.Error()))
+		b.replaceOrSend(ctx, msg, placeholder, "⚠️ "+tg.Escape(err.Error()))
 		return
 	}
-	b.send(ctx, msg, answer)
+	if strings.TrimSpace(answer) == "" {
+		answer = "Готово, но агент ничего не ответил."
+	}
+	b.replaceOrSend(ctx, msg, placeholder, tg.Markdown(answer))
 
 	if !b.deps.Config.Harness.Deploy {
 		return
@@ -399,6 +412,17 @@ func (b *Bot) photoAnswer(ctx context.Context, msg, reply *models.Message, quest
 func (b *Bot) send(ctx context.Context, msg *models.Message, text string) {
 	if _, err := b.deps.TG.Send(ctx, msg.Chat.ID, msg.ID, text); err != nil {
 		b.deps.Logger.Printf("telegram: отправка не удалась: %v", err)
+	}
+}
+
+// replaceOrSend переписывает сообщение-заглушку, а если её нет — отправляет новое.
+func (b *Bot) replaceOrSend(ctx context.Context, msg *models.Message, messageID int, text string) {
+	if messageID == 0 {
+		b.send(ctx, msg, text)
+		return
+	}
+	if _, err := b.deps.TG.Replace(ctx, msg.Chat.ID, messageID, text); err != nil {
+		b.deps.Logger.Printf("telegram: правка не удалась: %v", err)
 	}
 }
 
