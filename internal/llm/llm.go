@@ -23,8 +23,10 @@ const (
 	maxResponseBodyBytes = 10 << 20
 	maxVisionImages      = 8
 	visionMaxTokens      = 1200
-	answerMaxTokens      = 800
-	userAgent            = "github.com/soulfire330/superhikkabot/1.0"
+	// max_tokens включает reasoning-токены, поэтому бюджет с запасом:
+	// при 800 модель тратила всё на рассуждения и возвращала пустой content.
+	answerMaxTokens = 2048
+	userAgent       = "github.com/soulfire330/superhikkabot/1.0"
 )
 
 // sessionID — обязательный заголовок x-opencode-session для маршрутизации запросов
@@ -166,6 +168,19 @@ func (c *Client) Complete(ctx context.Context, prompt string) (string, error) {
 	return c.Raw(ctx, systemPrompt, prompt, false)
 }
 
+// noTextError объясняет пустой ответ модели: чаще всего это исчерпанный
+// max_tokens, который у reasoning-моделей общий с reasoning_content.
+func noTextError(finishReason string) error {
+	switch finishReason {
+	case "length":
+		return fmt.Errorf("model returned no text: finish_reason=length, token budget exhausted (likely by reasoning)")
+	case "":
+		return fmt.Errorf("model returned no text")
+	default:
+		return fmt.Errorf("model returned no text: finish_reason=%s", finishReason)
+	}
+}
+
 func (c *Client) withTools(ctx context.Context, prompt string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, attemptTimeout)
 	defer cancel()
@@ -189,7 +204,7 @@ func (c *Client) withTools(ctx context.Context, prompt string) (string, error) {
 		if len(choice.ToolCalls) == 0 {
 			text, _ := choice.Content.(string)
 			if strings.TrimSpace(text) == "" {
-				return "", fmt.Errorf("model returned no text")
+				return "", noTextError(resp.Choices[0].FinishReason)
 			}
 			return text, nil
 		}
@@ -271,7 +286,7 @@ func (c *Client) Raw(ctx context.Context, system, user string, jsonMode bool) (s
 
 	text, _ := resp.Choices[0].Message.Content.(string)
 	if strings.TrimSpace(text) == "" {
-		return "", fmt.Errorf("model returned no text")
+		return "", noTextError(resp.Choices[0].FinishReason)
 	}
 	return text, nil
 }
@@ -321,7 +336,7 @@ func (c *Client) CompleteWithImages(ctx context.Context, prompt string, images [
 
 	text, _ := resp.Choices[0].Message.Content.(string)
 	if strings.TrimSpace(text) == "" {
-		return "", fmt.Errorf("model returned no text")
+		return "", noTextError(resp.Choices[0].FinishReason)
 	}
 	return text, nil
 }

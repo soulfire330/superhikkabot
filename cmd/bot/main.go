@@ -114,7 +114,9 @@ func main() {
 	digestClient := digest.New(
 		llm.New(cfg.LLM.URL, cfg.LLM.APIKey, cfg.LLM.Model).
 			WithHTTPClient(contentHTTP(2*time.Minute)).
-			WithLogger(logger),
+			WithLogger(logger).
+			// Пересказ не требует рассуждений: они только жгут токены и время.
+			WithReasoning("none"),
 		crawl,
 		cfg.Digest.Language,
 	).WithHTTPClient(contentHTTP(30 * time.Second))
