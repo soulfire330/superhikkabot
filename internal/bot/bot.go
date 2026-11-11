@@ -108,6 +108,11 @@ func (b *Bot) Handle(ctx context.Context, msg *models.Message) {
 		return
 	}
 
+	// Реплай на сообщение агента продолжает ту самую сессию, а не общую болталку.
+	if b.continueSession(ctx, msg, text) {
+		return
+	}
+
 	private := isPrivate(msg)
 
 	if link := firstLink(text); link != "" {
@@ -196,28 +201,12 @@ func (b *Bot) dev(ctx context.Context, msg *models.Message, task string) {
 		return
 	}
 
-	b.deps.TG.Typing(ctx, msg.Chat.ID)
-
-	// Заглушка живёт одним сообщением: ответ приходит правкой, а не новым.
-	working := "Working…"
-	ids, err := b.deps.TG.Send(ctx, msg.Chat.ID, msg.ID, working)
-	placeholder := 0
-	if err != nil {
-		b.deps.Logger.Printf("telegram: отправка не удалась: %v", err)
-	}
-	if len(ids) > 0 {
-		placeholder = ids[0]
-	}
-
-	answer, err := b.deps.Harness.Run(ctx, msg.Chat.ID, task)
-	if err != nil {
-		b.replaceOrSend(ctx, msg, placeholder, "⚠️ "+tg.Escape(err.Error()))
+	// Каждый dev — новая pi-сессия; реплай на ответ её продолжит.
+	if !b.agentRun(ctx, msg, func() (harness.Reply, error) {
+		return b.deps.Harness.Run(ctx, msg.Chat.ID, task)
+	}) {
 		return
 	}
-	if strings.TrimSpace(answer) == "" {
-		answer = "Done, but the agent returned no text."
-	}
-	b.replaceOrSend(ctx, msg, placeholder, tg.Markdown(answer))
 
 	if !b.deps.Config.Harness.Deploy {
 		return
@@ -225,6 +214,60 @@ func (b *Bot) dev(ctx context.Context, msg *models.Message, task string) {
 
 	b.send(ctx, msg, "Building myself with the new changes…")
 	go b.deploy(task)
+}
+
+// continueSession уводит реплай на сообщение агента в его сессию.
+func (b *Bot) continueSession(ctx context.Context, msg *models.Message, text string) bool {
+	if b.deps.Harness == nil || msg.ReplyToMessage == nil {
+		return false
+	}
+	if !b.deps.Config.IsAdmin(msg.From.ID) {
+		return false
+	}
+
+	prompt := strings.TrimSpace(text)
+	if prompt == "" {
+		return false
+	}
+
+	session, ok := b.deps.Harness.ReplySession(msg.Chat.ID, msg.ReplyToMessage.ID)
+	if !ok {
+		return false
+	}
+
+	if !b.agentRun(ctx, msg, func() (harness.Reply, error) {
+		return b.deps.Harness.Continue(ctx, msg.Chat.ID, session, prompt)
+	}) {
+		return true
+	}
+
+	if b.deps.Config.Harness.Deploy {
+		b.send(ctx, msg, "Building myself with the new changes…")
+		go b.deploy(prompt)
+	}
+	return true
+}
+
+// agentRun показывает Working…, гоняет агента и переписывает заглушку ответом.
+// Возвращает false, если прогон провалился.
+func (b *Bot) agentRun(ctx context.Context, msg *models.Message, run func() (harness.Reply, error)) bool {
+	b.deps.TG.Typing(ctx, msg.Chat.ID)
+	placeholder := b.sendStatus(ctx, msg, "Working…")
+
+	reply, err := run()
+	if err != nil {
+		b.replaceOrSend(ctx, msg, placeholder, "⚠️ "+tg.Escape(err.Error()))
+		return false
+	}
+
+	answer := reply.Text
+	if strings.TrimSpace(answer) == "" {
+		answer = "Done, but the agent returned no text."
+	}
+
+	ids := b.replaceOrSend(ctx, msg, placeholder, tg.Markdown(answer))
+	b.deps.Harness.RememberReply(msg.Chat.ID, ids, reply.SessionPath)
+	return true
 }
 
 func (b *Bot) deploy(task string) {
@@ -457,20 +500,39 @@ func (b *Bot) photoAnswer(ctx context.Context, msg, reply *models.Message, quest
 }
 
 func (b *Bot) send(ctx context.Context, msg *models.Message, text string) {
-	if _, err := b.deps.TG.Send(ctx, msg.Chat.ID, msg.ID, text); err != nil {
+	b.sendIDs(ctx, msg, text)
+}
+
+// sendIDs отправляет сообщение и возвращает id всех его чанков.
+func (b *Bot) sendIDs(ctx context.Context, msg *models.Message, text string) []int {
+	ids, err := b.deps.TG.Send(ctx, msg.Chat.ID, msg.ID, text)
+	if err != nil {
 		b.deps.Logger.Printf("telegram: отправка не удалась: %v", err)
 	}
+	return ids
+}
+
+// sendStatus отправляет сообщение-статус и возвращает его id для будущей правки.
+func (b *Bot) sendStatus(ctx context.Context, msg *models.Message, text string) int {
+	ids := b.sendIDs(ctx, msg, text)
+	if len(ids) == 0 {
+		return 0
+	}
+	return ids[0]
 }
 
 // replaceOrSend переписывает сообщение-заглушку, а если её нет — отправляет новое.
-func (b *Bot) replaceOrSend(ctx context.Context, msg *models.Message, messageID int, text string) {
+// Возвращает id всех сообщений ответа, чтобы привязать их к сессии.
+func (b *Bot) replaceOrSend(ctx context.Context, msg *models.Message, messageID int, text string) []int {
 	if messageID == 0 {
-		b.send(ctx, msg, text)
-		return
+		return b.sendIDs(ctx, msg, text)
 	}
-	if _, err := b.deps.TG.Replace(ctx, msg.Chat.ID, messageID, text); err != nil {
+	ids, err := b.deps.TG.Replace(ctx, msg.Chat.ID, messageID, text)
+	if err != nil {
 		b.deps.Logger.Printf("telegram: правка не удалась: %v", err)
+		return b.sendIDs(ctx, msg, text)
 	}
+	return ids
 }
 
 func replyID(msg *models.Message) int {

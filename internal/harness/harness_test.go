@@ -10,13 +10,23 @@ import (
 	"time"
 )
 
-// fakePi отвечает на prompt так же, как pi в режиме rpc: ответ, сообщение, agent_settled.
+// fakePi отвечает на команды и prompt так же, как pi в режиме rpc.
 const fakePi = `#!/bin/sh
 while IFS= read -r line; do
-  printf '%s\n' '{"type":"response","command":"prompt","success":true}'
-  printf '%s\n' '{"type":"message_start","message":{"role":"assistant","content":[]}}'
-  printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"готово"},{"type":"text","text":"и ещё"}]}}'
-  printf '%s\n' '{"type":"agent_settled","aborted":false}'
+  id=$(printf '%s' "$line" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+  case "$line" in
+    *'"type":"new_session"'*)
+      printf '{"id":"%s","type":"response","command":"new_session","success":true}\n' "$id" ;;
+    *'"type":"get_state"'*)
+      printf '{"id":"%s","type":"response","command":"get_state","success":true,"data":{"sessionFile":"/tmp/pi-tg-test.jsonl"}}\n' "$id" ;;
+    *'"type":"switch_session"'*)
+      printf '{"id":"%s","type":"response","command":"switch_session","success":true}\n' "$id" ;;
+    *)
+      printf '{"id":"%s","type":"response","command":"prompt","success":true}\n' "$id"
+      printf '%s\n' '{"type":"message_start","message":{"role":"assistant","content":[]}}'
+      printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"готово"},{"type":"text","text":"и ещё"}]}}'
+      printf '%s\n' '{"type":"agent_settled","aborted":false}' ;;
+  esac
 done
 `
 
@@ -40,12 +50,34 @@ func TestRunnerReadsAnswer(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	answer, err := runner.Run(ctx, 42, "почини это")
+	reply, err := runner.Run(ctx, 42, "почини это")
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if want := "готово\nи ещё"; answer != want {
-		t.Errorf("ответ %q, хотим %q", answer, want)
+	if want := "готово\nи ещё"; reply.Text != want {
+		t.Errorf("ответ %q, хотим %q", reply.Text, want)
+	}
+	if want := "/tmp/pi-tg-test.jsonl"; reply.SessionPath != want {
+		t.Errorf("сессия %q, хотим %q", reply.SessionPath, want)
+	}
+}
+
+func TestRunnerContinuesSession(t *testing.T) {
+	runner := New(Config{
+		Binary:  writeFake(t, fakePi),
+		Timeout: 5 * time.Second,
+	}, log.New(os.Stderr, "", 0))
+	defer runner.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	reply, err := runner.Continue(ctx, 42, "/tmp/pi-tg-test.jsonl", "продолжай")
+	if err != nil {
+		t.Fatalf("Continue: %v", err)
+	}
+	if reply.Text == "" || reply.SessionPath != "/tmp/pi-tg-test.jsonl" {
+		t.Errorf("неожиданный ответ: %+v", reply)
 	}
 }
 
@@ -67,7 +99,15 @@ func TestRunnerReportsProcessExit(t *testing.T) {
 func TestRunnerReportsFailedResponse(t *testing.T) {
 	body := `#!/bin/sh
 while IFS= read -r line; do
-  printf '%s\n' '{"type":"response","command":"prompt","success":false,"error":"нет модели"}'
+  id=$(printf '%s' "$line" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+  case "$line" in
+    *'"type":"new_session"'*)
+      printf '{"id":"%s","type":"response","command":"new_session","success":true}\n' "$id" ;;
+    *'"type":"get_state"'*)
+      printf '{"id":"%s","type":"response","command":"get_state","success":true,"data":{"sessionFile":"/tmp/pi-tg-test.jsonl"}}\n' "$id" ;;
+    *)
+      printf '{"id":"%s","type":"response","command":"prompt","success":false,"error":"нет модели"}\n' "$id" ;;
+  esac
 done
 `
 	runner := New(Config{Binary: writeFake(t, body), Timeout: 5 * time.Second}, log.New(os.Stderr, "", 0))

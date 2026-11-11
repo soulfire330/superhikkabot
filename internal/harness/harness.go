@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -49,6 +50,9 @@ type Runner struct {
 	run   sync.Mutex
 	mu    sync.Mutex
 	procs map[int64]*proc
+
+	// replies помнит, какая pi-сессия стоит за сообщением бота.
+	replies *replyStore
 }
 
 type proc struct {
@@ -59,10 +63,13 @@ type proc struct {
 }
 
 type record struct {
-	Type    string `json:"type"`
-	Success *bool  `json:"success"`
-	Error   string `json:"error"`
-	Aborted bool   `json:"aborted"`
+	ID      string          `json:"id"`
+	Type    string          `json:"type"`
+	Command string          `json:"command"`
+	Success *bool           `json:"success"`
+	Error   string          `json:"error"`
+	Data    json.RawMessage `json:"data"`
+	Aborted bool            `json:"aborted"`
 	Message struct {
 		Role    string          `json:"role"`
 		Content json.RawMessage `json:"content"`
@@ -81,11 +88,34 @@ func New(cfg Config, logger *log.Logger) *Runner {
 		cfg.Timeout = 20 * time.Minute
 	}
 
-	return &Runner{cfg: cfg, logger: logger, procs: make(map[int64]*proc)}
+	return &Runner{
+		cfg:     cfg,
+		logger:  logger,
+		procs:   make(map[int64]*proc),
+		replies: newReplyStore(cfg.SessionDir),
+	}
 }
 
-// Run отправляет задачу агенту и ждёт, пока он закончит, возвращая финальный текст.
-func (r *Runner) Run(ctx context.Context, chatID int64, prompt string) (string, error) {
+// Reply — итог прогона агента: текст ответа и сессия, которую он продолжил.
+type Reply struct {
+	Text        string
+	SessionPath string
+}
+
+// Run начинает новую pi-сессию, отправляет задачу и ждёт финальный текст.
+func (r *Runner) Run(ctx context.Context, chatID int64, prompt string) (Reply, error) {
+	return r.runIn(ctx, chatID, "", prompt)
+}
+
+// Continue продолжает конкретную сессию — так реплай возвращается в свой dev-ран.
+func (r *Runner) Continue(ctx context.Context, chatID int64, sessionPath, prompt string) (Reply, error) {
+	if strings.TrimSpace(sessionPath) == "" {
+		return Reply{}, errors.New("pi: empty session path")
+	}
+	return r.runIn(ctx, chatID, sessionPath, prompt)
+}
+
+func (r *Runner) runIn(ctx context.Context, chatID int64, sessionPath, prompt string) (Reply, error) {
 	r.run.Lock()
 	defer r.run.Unlock()
 
@@ -94,20 +124,96 @@ func (r *Runner) Run(ctx context.Context, chatID int64, prompt string) (string, 
 
 	process, err := r.process(chatID)
 	if err != nil {
-		return "", err
+		return Reply{}, err
+	}
+
+	if sessionPath == "" {
+		if _, err := r.sendCommand(ctx, chatID, process, map[string]any{"type": "new_session"}); err != nil {
+			return Reply{}, err
+		}
+		if sessionPath, err = r.sessionFile(ctx, chatID, process); err != nil {
+			return Reply{}, err
+		}
+	} else if _, err := r.sendCommand(ctx, chatID, process, map[string]any{
+		"type": "switch_session", "sessionPath": sessionPath,
+	}); err != nil {
+		return Reply{}, err
 	}
 
 	command, err := json.Marshal(map[string]any{"type": "prompt", "message": prompt})
 	if err != nil {
-		return "", err
+		return Reply{}, err
 	}
 
 	if _, err := process.stdin.Write(append(command, '\n')); err != nil {
 		r.drop(chatID)
-		return "", fmt.Errorf("pi: sending the task: %w", err)
+		return Reply{}, fmt.Errorf("pi: sending the task: %w", err)
 	}
 
-	return r.wait(ctx, chatID, process)
+	answer, err := r.wait(ctx, chatID, process)
+	if err != nil {
+		return Reply{}, err
+	}
+	return Reply{Text: answer, SessionPath: sessionPath}, nil
+}
+
+var commandSeq atomic.Uint64
+
+// sendCommand шлёт RPC-команду и ждёт ответ с тем же id.
+func (r *Runner) sendCommand(ctx context.Context, chatID int64, process *proc, command map[string]any) (json.RawMessage, error) {
+	id := fmt.Sprintf("cmd-%d", commandSeq.Add(1))
+	command["id"] = id
+
+	raw, err := json.Marshal(command)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := process.stdin.Write(append(raw, '\n')); err != nil {
+		r.drop(chatID)
+		return nil, fmt.Errorf("pi: sending %v: %w", command["type"], err)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("pi: %w", ctx.Err())
+
+		case <-process.exited:
+			r.drop(chatID)
+			return nil, errors.New("pi: process exited")
+
+		case event := <-process.events:
+			if event.Type != "response" || event.ID != id {
+				continue
+			}
+			if event.Success != nil && !*event.Success {
+				return nil, fmt.Errorf("pi: %s", strings.TrimSpace(event.Error))
+			}
+			var result struct {
+				Cancelled bool `json:"cancelled"`
+			}
+			if json.Unmarshal(event.Data, &result) == nil && result.Cancelled {
+				return nil, fmt.Errorf("pi: %s cancelled", event.Command)
+			}
+			return event.Data, nil
+		}
+	}
+}
+
+// sessionFile узнаёт у pi, в каком файле лежит текущая сессия.
+func (r *Runner) sessionFile(ctx context.Context, chatID int64, process *proc) (string, error) {
+	data, err := r.sendCommand(ctx, chatID, process, map[string]any{"type": "get_state"})
+	if err != nil {
+		return "", err
+	}
+
+	var state struct {
+		SessionFile string `json:"sessionFile"`
+	}
+	if json.Unmarshal(data, &state) != nil || strings.TrimSpace(state.SessionFile) == "" {
+		return "", errors.New("pi: session file is unknown")
+	}
+	return state.SessionFile, nil
 }
 
 func (r *Runner) wait(ctx context.Context, chatID int64, process *proc) (string, error) {
