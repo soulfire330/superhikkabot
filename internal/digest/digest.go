@@ -43,6 +43,14 @@ func New(summarizer *llm.Client, crawl *firecrawl.Client, language string) *Clie
 	}
 }
 
+// WithHTTPClient подменяет HTTP-клиент для загрузки страниц и API GitHub.
+func (c *Client) WithHTTPClient(client *http.Client) *Client {
+	if client != nil {
+		c.httpClient = client
+	}
+	return c
+}
+
 // Tool отдаёт инструмент «сделай дайджест ссылки» для модели.
 func (c *Client) Tool() llm.Tool {
 	return llm.Tool{

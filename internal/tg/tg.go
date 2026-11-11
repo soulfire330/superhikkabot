@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -22,16 +23,27 @@ const (
 	maxDownloadBytes  = 20 << 20
 	maxAlbumPhotos    = 10
 	parseErrorSnippet = "can't parse entities"
+	pollTimeout       = time.Minute
+	downloadTimeout   = 2 * time.Minute
 )
 
 var htmlTags = regexp.MustCompile(`<[^>]*>`)
 
+// Options — параметры клиента.
+type Options struct {
+	Token     string
+	Transport http.RoundTripper
+	Logger    *log.Logger
+	OnMessage func(context.Context, *models.Message)
+}
+
 // Client отправляет сообщения и знает, что именно он отправил.
 type Client struct {
-	api      *bot.Bot
-	username string
-	id       int64
-	logger   *log.Logger
+	api        *bot.Bot
+	httpClient *http.Client
+	username   string
+	id         int64
+	logger     *log.Logger
 
 	mu       sync.RWMutex
 	onSent   func(chatID int64, ids []int, text string, replyTo int)
@@ -39,18 +51,27 @@ type Client struct {
 }
 
 // New авторизуется, запоминает username бота и вешает обработчик сообщений.
-func New(ctx context.Context, token string, logger *log.Logger, onMessage func(context.Context, *models.Message)) (*Client, error) {
-	api, err := bot.New(token,
+func New(ctx context.Context, opts Options) (*Client, error) {
+	options := []bot.Option{
 		bot.WithErrorsHandler(func(err error) {
-			logger.Printf("telegram: %v", err)
+			opts.Logger.Printf("telegram: %v", err)
 		}),
 		bot.WithDefaultHandler(func(ctx context.Context, _ *bot.Bot, update *models.Update) {
-			if update == nil || update.Message == nil || onMessage == nil {
+			if update == nil || update.Message == nil || opts.OnMessage == nil {
 				return
 			}
-			onMessage(ctx, update.Message)
+			opts.OnMessage(ctx, update.Message)
 		}),
-	)
+	}
+	if opts.Transport != nil {
+		// Транспорт с прокси нужен и поллингу, и отправке файлов.
+		options = append(options, bot.WithHTTPClient(pollTimeout, &http.Client{
+			Transport: opts.Transport,
+			Timeout:   pollTimeout,
+		}))
+	}
+
+	api, err := bot.New(opts.Token, options...)
 	if err != nil {
 		return nil, fmt.Errorf("telegram: %w", err)
 	}
@@ -60,7 +81,13 @@ func New(ctx context.Context, token string, logger *log.Logger, onMessage func(c
 		return nil, fmt.Errorf("telegram getMe: %w", err)
 	}
 
-	return &Client{api: api, username: me.Username, id: me.ID, logger: logger}, nil
+	return &Client{
+		api:        api,
+		httpClient: &http.Client{Transport: opts.Transport, Timeout: downloadTimeout},
+		username:   me.Username,
+		id:         me.ID,
+		logger:     opts.Logger,
+	}, nil
 }
 
 // Username возвращает username без @.
@@ -203,7 +230,7 @@ func (c *Client) Download(ctx context.Context, fileID string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("запрос на скачивание: %w", err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("скачивание файла: %w", err)
 	}

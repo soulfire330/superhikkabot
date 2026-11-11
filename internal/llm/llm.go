@@ -79,6 +79,14 @@ func (c *Client) WithMaxRounds(rounds int) *Client {
 	return c
 }
 
+// WithHTTPClient подменяет HTTP-клиент: нужен для прокси и своих таймаутов.
+func (c *Client) WithHTTPClient(client *http.Client) *Client {
+	if client != nil {
+		c.httpClient = client
+	}
+	return c
+}
+
 // WithLogger подключает лог раундов и вызовов инструментов.
 func (c *Client) WithLogger(logger *log.Logger) *Client {
 	c.logger = logger

@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -20,6 +21,7 @@ import (
 	"superhikkabot/internal/llm"
 	"superhikkabot/internal/media"
 	"superhikkabot/internal/photo"
+	"superhikkabot/internal/proxy"
 	"superhikkabot/internal/tg"
 	"superhikkabot/internal/video"
 )
@@ -49,11 +51,35 @@ func main() {
 	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// Прокси для внешних API: пустое поле — прямое соединение.
+	contentTransport, err := proxy.Transport(cfg.Proxy.LLM)
+	if err != nil {
+		logger.Fatalf("прокси llm: %v", err)
+	}
+	telegramTransport, err := proxy.Transport(cfg.Proxy.Telegram)
+	if err != nil {
+		logger.Fatalf("прокси telegram: %v", err)
+	}
+	contentHTTP := func(timeout time.Duration) *http.Client {
+		return &http.Client{Transport: contentTransport, Timeout: timeout}
+	}
+	if cfg.Proxy.LLM != "" {
+		logger.Printf("прокси llm: %s", cfg.Proxy.LLM)
+	}
+	if cfg.Proxy.Telegram != "" {
+		logger.Printf("прокси telegram: %s", cfg.Proxy.Telegram)
+	}
+
 	var router *bot.Bot
 
 	initCtx, cancelInit := context.WithTimeout(rootCtx, 30*time.Second)
-	tgClient, err := tg.New(initCtx, cfg.Telegram.Token, logger, func(ctx context.Context, msg *models.Message) {
-		router.Handle(ctx, msg)
+	tgClient, err := tg.New(initCtx, tg.Options{
+		Token:     cfg.Telegram.Token,
+		Transport: telegramTransport,
+		Logger:    logger,
+		OnMessage: func(ctx context.Context, msg *models.Message) {
+			router.Handle(ctx, msg)
+		},
 	})
 	cancelInit()
 	if err != nil {
@@ -83,14 +109,18 @@ func main() {
 		},
 	)
 
-	crawl := firecrawl.New(cfg.Firecrawl.BaseURL, cfg.Firecrawl.APIKey)
+	crawl := firecrawl.New(cfg.Firecrawl.BaseURL, cfg.Firecrawl.APIKey).
+		WithHTTPClient(contentHTTP(45 * time.Second))
 	digestClient := digest.New(
-		llm.New(cfg.LLM.URL, cfg.LLM.APIKey, cfg.LLM.Model).WithLogger(logger),
+		llm.New(cfg.LLM.URL, cfg.LLM.APIKey, cfg.LLM.Model).
+			WithHTTPClient(contentHTTP(2*time.Minute)).
+			WithLogger(logger),
 		crawl,
 		cfg.Digest.Language,
-	)
+	).WithHTTPClient(contentHTTP(30 * time.Second))
 
 	llmClient := llm.New(cfg.LLM.URL, cfg.LLM.APIKey, cfg.LLM.Model, crawl.Tool(), digestClient.Tool()).
+		WithHTTPClient(contentHTTP(2 * time.Minute)).
 		WithLogger(logger).
 		WithMaxRounds(cfg.LLM.MaxRounds).
 		WithReasoning(cfg.LLM.Reasoning)

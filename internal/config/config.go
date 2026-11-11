@@ -21,6 +21,13 @@ type Config struct {
 	Video     Video     `toml:"video"`
 	Photo     Photo     `toml:"photo"`
 	Harness   Harness   `toml:"harness"`
+	Proxy     Proxy     `toml:"proxy"`
+}
+
+// Proxy — адреса прокси. Пустое поле означает прямое соединение.
+type Proxy struct {
+	LLM      string `toml:"llm"`
+	Telegram string `toml:"telegram"`
 }
 
 type Telegram struct {

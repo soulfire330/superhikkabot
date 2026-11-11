@@ -43,6 +43,14 @@ func New(baseURL, apiKey string) *Client {
 	}
 }
 
+// WithHTTPClient подменяет HTTP-клиент: нужен для прокси.
+func (c *Client) WithHTTPClient(client *http.Client) *Client {
+	if client != nil {
+		c.client = client
+	}
+	return c
+}
+
 // Enabled сообщает, настроен ли ключ.
 func (c *Client) Enabled() bool { return c.apiKey != "" }
 

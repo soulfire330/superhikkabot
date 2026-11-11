@@ -7,6 +7,7 @@ require (
 	github.com/markusmobius/go-trafilatura v1.12.2
 	github.com/pelletier/go-toml/v2 v2.4.3
 	golang.org/x/image v0.48.0
+	golang.org/x/net v0.30.0
 )
 
 require (
@@ -33,7 +34,6 @@ require (
 	github.com/wasilibs/wazero-helpers v0.0.0-20240620070341-3dff1577cd52 // indirect
 	github.com/yosssi/gohtml v0.0.0-20201013000340-ee4748c638f4 // indirect
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c // indirect
-	golang.org/x/net v0.30.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/text v0.44.0 // indirect
 )
