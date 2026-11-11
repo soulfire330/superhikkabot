@@ -93,6 +93,9 @@ func (b *Bot) Handle(ctx context.Context, msg *models.Message) {
 	case "dev":
 		b.dev(ctx, msg, argument)
 		return
+	case "deploy":
+		b.manualDeploy(ctx, msg)
+		return
 	case "tldr":
 		b.digest(ctx, msg, argument)
 		return
@@ -132,7 +135,7 @@ func (b *Bot) Handle(ctx context.Context, msg *models.Message) {
 		return
 	}
 
-	if isReplyToBot(msg, b.deps.Dialog) || mentioned || private {
+	if isReplyToBot(msg, b.deps.Dialog, b.deps.TG.Username()) || mentioned || private {
 		b.answer(ctx, msg, text)
 	}
 }
@@ -180,6 +183,7 @@ const welcome = `Привет. Я умею:
 • ссылка на TikTok, Instagram или YouTube Shorts — скачать видео или фото
 • реплай на видео/фото — ответить по содержимому
 • <code>dev &lt;задача&gt;</code> — позвать агента (только админам)
+• <code>deploy</code> — пересобрать и перезапустить бота с текущими правками (только админам)
 
 В личке можно писать без команды.`
 
@@ -234,6 +238,30 @@ func (b *Bot) deploy(task string) {
 		return
 	}
 	b.deps.Logger.Printf("deploy: %s", result)
+}
+
+// manualDeploy — команда deploy: собрать рабочую копию и перезапуститься,
+// не дожидаясь правок агента. Только для админов.
+func (b *Bot) manualDeploy(ctx context.Context, msg *models.Message) {
+	if b.deps.Harness == nil || !b.deps.Config.IsAdmin(msg.From.ID) {
+		return
+	}
+
+	b.deps.TG.Typing(ctx, msg.Chat.ID)
+	b.send(ctx, msg, "Собираю себя с текущими правками…")
+
+	go func(chatID int64) {
+		dctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+		defer cancel()
+
+		result, err := b.deps.Harness.Deploy(dctx, "manual deploy")
+		if err != nil {
+			b.deps.Logger.Printf("deploy: %v", err)
+			_, _ = b.deps.TG.Send(dctx, chatID, 0, "⚠️ "+tg.Escape(err.Error()))
+			return
+		}
+		b.deps.Logger.Printf("deploy: %s", result)
+	}(msg.Chat.ID)
 }
 
 func (b *Bot) digest(ctx context.Context, msg *models.Message, argument string) {
@@ -433,8 +461,16 @@ func replyID(msg *models.Message) int {
 	return 0
 }
 
-func isReplyToBot(msg *models.Message, store *dialog.Store) bool {
-	return msg.ReplyToMessage != nil && store.IsBot(msg.Chat.ID, msg.ReplyToMessage.ID)
+func isReplyToBot(msg *models.Message, store *dialog.Store, botUsername string) bool {
+	if msg.ReplyToMessage == nil {
+		return false
+	}
+	if store.IsBot(msg.Chat.ID, msg.ReplyToMessage.ID) {
+		return true
+	}
+	// После перезапуска память диалогов пуста: узнаём себя по username в reply_to_message.
+	from := msg.ReplyToMessage.From
+	return from != nil && botUsername != "" && strings.EqualFold(from.Username, botUsername)
 }
 
 // stripMention убирает @username бота и сообщает, было ли упоминание.

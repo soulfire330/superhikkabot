@@ -18,12 +18,9 @@ const (
 )
 
 // Deploy собирает рабочую копию и заменяет текущий бинарник, если сборка прошла.
-// Возвращает описание: собралось или нет. При успехе процесс не возвращается.
+// Автоматический вызов после dev управляется конфигом (harness.deploy), ручная
+// команда deploy вызывает этот метод напрямую.
 func (r *Runner) Deploy(ctx context.Context, note string) (string, error) {
-	if !r.cfg.Deploy {
-		return "", fmt.Errorf("самоперезапуск выключен: harness.deploy = false")
-	}
-
 	exe, err := os.Executable()
 	if err != nil {
 		return "", fmt.Errorf("путь к бинарнику: %w", err)
