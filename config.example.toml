@@ -1,0 +1,60 @@
+# Конфиг читается рядом с бинарником (CONFIG_PATH, по умолчанию ./config.toml).
+# Секреты сюда не пишем: TELEGRAM_BOT_TOKEN, LLM_API_KEY, FIRECRAWL_API_KEY,
+# GROQ_API_KEY берутся из окружения (systemd EnvironmentFile, режим 600).
+
+[telegram]
+# Пусто — бот отвечает в любом чате, куда его добавили.
+allowed_chats = []
+# Кто может звать `dev` (самоправка через pi).
+admin_users = []
+
+[llm]
+url = "https://api.opencode.ai/inference/go/openai/v1/chat/completions"
+model = "gemini-3.7-flash-low"
+max_tool_rounds = 2
+# reasoning_effort = "low"
+
+[digest]
+language = "ru"
+
+[firecrawl]
+base_url = "https://api.firecrawl.dev"
+
+[media]
+dir = "./data/media"
+ytdlp = "yt-dlp"
+gallery_dl = "gallery-dl"
+max_file_size = 52428800
+max_duration = 600
+timeout = "10m"
+# proxy = "http://127.0.0.1:1080"
+# cookies_file = "./data/cookies.txt"
+
+[video]
+enabled = true
+dir = "./data/video"
+ttl = "24h"
+max_bytes = 1073741824
+frames = 5
+frame_width = 512
+max_duration = 300
+groq_model = "whisper-large-v3"
+
+[photo]
+enabled = true
+dir = "./data/photo"
+ttl = "24h"
+max_bytes = 268435456
+direct_limit = 6
+collage_cell = 320
+collage_quality = 80
+collage_max = 30
+
+[harness]
+enabled = true
+binary = "pi"
+workspace = "."
+session_dir = "./data/pi"
+timeout = "20m"
+# deploy = true — после успешного dev-рана бот соберёт себя и перезапустится.
+deploy = false
