@@ -51,20 +51,20 @@ func (t *Transcriber) Enabled() bool { return t != nil && t.apiKey != "" }
 // Transcribe отправляет аудио в Whisper и возвращает речь без музыки и тишины.
 func (t *Transcriber) Transcribe(ctx context.Context, audioPath string) (string, error) {
 	if !t.Enabled() {
-		return "", fmt.Errorf("GROQ_API_KEY не задан")
+		return "", fmt.Errorf("GROQ_API_KEY is not set")
 	}
 
 	info, err := os.Stat(audioPath)
 	if err != nil {
-		return "", fmt.Errorf("аудиофайл: %w", err)
+		return "", fmt.Errorf("audio file: %w", err)
 	}
 	if info.Size() > groqMaxAudioBytes {
-		return "", fmt.Errorf("аудиофайл больше %d байт", groqMaxAudioBytes)
+		return "", fmt.Errorf("audio file is larger than %d bytes", groqMaxAudioBytes)
 	}
 
 	file, err := os.Open(audioPath)
 	if err != nil {
-		return "", fmt.Errorf("открытие аудиофайла: %w", err)
+		return "", fmt.Errorf("opening audio file: %w", err)
 	}
 	defer file.Close()
 
@@ -76,7 +76,7 @@ func (t *Transcriber) Transcribe(ctx context.Context, audioPath string) (string,
 		return "", fmt.Errorf("multipart file: %w", err)
 	}
 	if _, err := io.Copy(part, file); err != nil {
-		return "", fmt.Errorf("чтение аудиофайла: %w", err)
+		return "", fmt.Errorf("reading audio file: %w", err)
 	}
 
 	for key, value := range map[string]string{
@@ -94,23 +94,23 @@ func (t *Transcriber) Transcribe(ctx context.Context, audioPath string) (string,
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.baseURL+"/audio/transcriptions", &body)
 	if err != nil {
-		return "", fmt.Errorf("создание запроса Groq: %w", err)
+		return "", fmt.Errorf("creating Groq request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+t.apiKey)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := t.client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("запрос Groq: %w", err)
+		return "", fmt.Errorf("Groq request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, groqMaxResponseBytes))
 	if err != nil {
-		return "", fmt.Errorf("чтение ответа Groq: %w", err)
+		return "", fmt.Errorf("reading Groq response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("Groq вернул HTTP %d: %s", resp.StatusCode, string(raw[:min(len(raw), 300)]))
+		return "", fmt.Errorf("Groq returned HTTP %d: %s", resp.StatusCode, string(raw[:min(len(raw), 300)]))
 	}
 
 	var result struct {
@@ -122,7 +122,7 @@ func (t *Transcriber) Transcribe(ctx context.Context, audioPath string) (string,
 		} `json:"segments"`
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
-		return "", fmt.Errorf("разбор ответа Groq: %w", err)
+		return "", fmt.Errorf("parsing Groq response: %w", err)
 	}
 
 	return joinSegments(result.Text, result.Segments), nil

@@ -215,7 +215,7 @@ func main() {
 	// Отчёт о самоперезапуске: правит сообщение, оставленное командой deploy.
 	if note, ok := harness.LoadDeployNote(); ok {
 		reportCtx, reportCancel := context.WithTimeout(rootCtx, 20*time.Second)
-		text := "✅ Деплой прошёл — работаю на новом бинарнике"
+		text := "✅ Deploy succeeded — running on the new binary"
 		if runner != nil {
 			if head := runner.Head(reportCtx); head != "" {
 				text += " (" + head + ")"

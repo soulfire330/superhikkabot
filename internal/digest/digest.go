@@ -68,7 +68,7 @@ func (c *Client) tool(ctx context.Context, args string) (string, error) {
 		URL string `json:"url"`
 	}
 	if err := json.Unmarshal([]byte(args), &params); err != nil {
-		return "", fmt.Errorf("некорректные аргументы: %w", err)
+		return "", fmt.Errorf("invalid arguments: %w", err)
 	}
 
 	result, err := c.Summary(ctx, params.URL)
@@ -83,7 +83,7 @@ func (c *Client) tool(ctx context.Context, args string) (string, error) {
 func (c *Client) Summary(ctx context.Context, source string) (*Result, error) {
 	source = strings.TrimSpace(source)
 	if source == "" {
-		return nil, fmt.Errorf("пустая ссылка")
+		return nil, fmt.Errorf("empty link")
 	}
 
 	kind, err := resolve(source)
@@ -97,7 +97,7 @@ func (c *Client) Summary(ctx context.Context, source string) (*Result, error) {
 	}
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return nil, fmt.Errorf("в источнике не нашлось текста")
+		return nil, fmt.Errorf("no text found in the source")
 	}
 
 	title, summary, err := c.summarize(ctx, kind, source, text)
@@ -112,7 +112,7 @@ func (c *Client) Summary(ctx context.Context, source string) (*Result, error) {
 func resolve(source string) (string, error) {
 	u, err := url.Parse(source)
 	if err != nil || u.Host == "" {
-		return "", fmt.Errorf("не похоже на ссылку: %s", source)
+		return "", fmt.Errorf("not a link: %s", source)
 	}
 
 	host := strings.TrimPrefix(strings.ToLower(u.Hostname()), "www.")
@@ -154,18 +154,18 @@ const textSystem = `Ты сжимаешь текст в пересказ для 
 func (c *Client) TextSummary(ctx context.Context, text string) (string, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return "", fmt.Errorf("нечего пересказывать")
+		return "", fmt.Errorf("nothing to summarize")
 	}
 
 	system := fmt.Sprintf(textSystem, textLimit(len([]rune(text))))
 	raw, err := c.llm.Raw(ctx, system, "Текст:\n"+truncateRunes(text, 8000), false)
 	if err != nil {
-		return "", fmt.Errorf("пересказ текста: %w", err)
+		return "", fmt.Errorf("text summary: %w", err)
 	}
 
 	summary := strings.TrimSpace(raw)
 	if summary == "" {
-		return "", fmt.Errorf("модель вернула пустой пересказ")
+		return "", fmt.Errorf("model returned an empty summary")
 	}
 	return summary, nil
 }
@@ -194,7 +194,7 @@ func (c *Client) summarize(ctx context.Context, kind, source, text string) (stri
 		// Провайдер мог не принять response_format — переспрашиваем без него.
 		raw, err = c.llm.Raw(ctx, summarySystem, prompt, false)
 		if err != nil {
-			return "", "", fmt.Errorf("пересказ моделью: %w", err)
+			return "", "", fmt.Errorf("model summary: %w", err)
 		}
 	}
 
@@ -204,14 +204,14 @@ func (c *Client) summarize(ctx context.Context, kind, source, text string) (stri
 	}
 	if err := json.Unmarshal([]byte(stripFences(raw)), &parsed); err != nil {
 		// Модель иногда отдаёт текст вместо JSON — отдаём как есть.
-		return "Дайджест", strings.TrimSpace(raw), nil
+		return "Digest", strings.TrimSpace(raw), nil
 	}
 
 	if strings.TrimSpace(parsed.Summary) == "" {
-		return "", "", fmt.Errorf("модель вернула пустой пересказ")
+		return "", "", fmt.Errorf("model returned an empty summary")
 	}
 	if strings.TrimSpace(parsed.Title) == "" {
-		parsed.Title = "Дайджест"
+		parsed.Title = "Digest"
 	}
 
 	return strings.TrimSpace(parsed.Title), strings.TrimSpace(parsed.Summary), nil

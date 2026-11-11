@@ -52,7 +52,7 @@ func (o CollageOptions) withDefaults() CollageOptions {
 func BuildCollages(images [][]byte, opts CollageOptions) ([][]byte, error) {
 	opts = opts.withDefaults()
 	if len(images) == 0 {
-		return nil, fmt.Errorf("нет изображений для коллажа")
+		return nil, fmt.Errorf("no images for the collage")
 	}
 
 	result := make([][]byte, 0, len(images)/opts.MaxImages+1)
@@ -114,12 +114,12 @@ func buildOne(images [][]byte, opts CollageOptions, offset int) ([]byte, error) 
 	}
 
 	if decoded == 0 {
-		return nil, fmt.Errorf("не удалось декодировать ни одного изображения")
+		return nil, fmt.Errorf("could not decode any image")
 	}
 
 	var buffer bytes.Buffer
 	if err := jpeg.Encode(&buffer, canvas, &jpeg.Options{Quality: opts.Quality}); err != nil {
-		return nil, fmt.Errorf("кодирование коллажа: %w", err)
+		return nil, fmt.Errorf("encoding collage: %w", err)
 	}
 	return buffer.Bytes(), nil
 }

@@ -258,21 +258,21 @@ func (c *Client) Download(ctx context.Context, fileID string) ([]byte, error) {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.api.FileDownloadLink(file), nil)
 	if err != nil {
-		return nil, fmt.Errorf("запрос на скачивание: %w", err)
+		return nil, fmt.Errorf("download request: %w", err)
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("скачивание файла: %w", err)
+		return nil, fmt.Errorf("file download: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("скачивание файла: HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("file download: HTTP %d", resp.StatusCode)
 	}
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxDownloadBytes))
 	if err != nil {
-		return nil, fmt.Errorf("чтение файла: %w", err)
+		return nil, fmt.Errorf("reading file: %w", err)
 	}
 	return data, nil
 }
@@ -281,7 +281,7 @@ func (c *Client) Download(ctx context.Context, fileID string) ([]byte, error) {
 func (c *Client) SendVideo(ctx context.Context, chatID int64, replyTo int, path string, width, height, duration int) (int, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return 0, fmt.Errorf("открытие видео: %w", err)
+		return 0, fmt.Errorf("opening video: %w", err)
 	}
 	defer file.Close()
 
@@ -302,7 +302,7 @@ func (c *Client) SendVideo(ctx context.Context, chatID int64, replyTo int, path 
 		return 0, err
 	}
 
-	c.sent(chatID, []int{msg.ID}, "[видео]", replyTo)
+	c.sent(chatID, []int{msg.ID}, "[video]", replyTo)
 	return msg.ID, nil
 }
 
@@ -345,14 +345,14 @@ func (c *Client) SendPhotos(ctx context.Context, chatID int64, replyTo int, path
 		}
 	}
 
-	c.sent(chatID, ids, "[фото]", replyTo)
+	c.sent(chatID, ids, "[photo]", replyTo)
 	return ids, nil
 }
 
 func (c *Client) sendSinglePhoto(ctx context.Context, chatID int64, replyTo int, path string) (int, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return 0, fmt.Errorf("открытие фото: %w", err)
+		return 0, fmt.Errorf("opening photo: %w", err)
 	}
 	defer file.Close()
 
@@ -380,7 +380,7 @@ func photoBatch(paths []string) ([]models.InputMedia, []*os.File, error) {
 		file, err := os.Open(path)
 		if err != nil {
 			closeFiles(files)
-			return nil, nil, fmt.Errorf("открытие фото %s: %w", path, err)
+			return nil, nil, fmt.Errorf("opening photo %s: %w", path, err)
 		}
 		files = append(files, file)
 

@@ -157,7 +157,7 @@ func (d *CLIDownloader) resolveRedirect(ctx context.Context, rawURL string) (str
 
 func (d *CLIDownloader) downloadVideo(ctx context.Context, target Target, dir string) (Downloaded, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return Downloaded{}, fmt.Errorf("создание временного каталога: %w", err)
+		return Downloaded{}, fmt.Errorf("creating temp directory: %w", err)
 	}
 
 	if err := runCommand(ctx, d.cfg.YTDLP, d.ytdlpArgs(target, dir)); err != nil {
@@ -166,7 +166,7 @@ func (d *CLIDownloader) downloadVideo(ctx context.Context, target Target, dir st
 
 	files := collectFiles(dir, videoExtensions)
 	if len(files) == 0 {
-		return Downloaded{}, fmt.Errorf("%w: yt-dlp не создал видеофайл", ErrNoMedia)
+		return Downloaded{}, fmt.Errorf("%w: yt-dlp produced no video file", ErrNoMedia)
 	}
 
 	path := pickLargest(files)
@@ -179,7 +179,7 @@ func (d *CLIDownloader) downloadVideo(ctx context.Context, target Target, dir st
 		return Downloaded{}, err
 	}
 	if d.cfg.MaxDuration > 0 && duration > d.cfg.MaxDuration {
-		return Downloaded{}, fmt.Errorf("%w: %d секунд", ErrTooLong, duration)
+		return Downloaded{}, fmt.Errorf("%w: %d seconds", ErrTooLong, duration)
 	}
 
 	return Downloaded{Kind: KindVideo, VideoPath: path, Width: width, Height: height, Duration: duration}, nil
@@ -187,7 +187,7 @@ func (d *CLIDownloader) downloadVideo(ctx context.Context, target Target, dir st
 
 func (d *CLIDownloader) downloadPhotos(ctx context.Context, target Target, dir string) (Downloaded, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return Downloaded{}, fmt.Errorf("создание временного каталога: %w", err)
+		return Downloaded{}, fmt.Errorf("creating temp directory: %w", err)
 	}
 
 	if err := runCommand(ctx, d.cfg.GalleryDL, d.galleryArgs(target, dir)); err != nil {
@@ -200,7 +200,7 @@ func (d *CLIDownloader) downloadPhotos(ctx context.Context, target Target, dir s
 		for _, path := range images {
 			info, err := os.Stat(path)
 			if err != nil {
-				return Downloaded{}, fmt.Errorf("проверка фото: %w", err)
+				return Downloaded{}, fmt.Errorf("checking photos: %w", err)
 			}
 			if info.Size() > maxPhotoSize {
 				continue
@@ -208,7 +208,7 @@ func (d *CLIDownloader) downloadPhotos(ctx context.Context, target Target, dir s
 			filtered = append(filtered, path)
 		}
 		if len(filtered) == 0 {
-			return Downloaded{}, fmt.Errorf("%w: все фото больше 10 МБ", ErrTooLarge)
+			return Downloaded{}, fmt.Errorf("%w: all photos are larger than 10 MB", ErrTooLarge)
 		}
 		return Downloaded{Kind: KindPhoto, ImagePaths: filtered}, nil
 	}
@@ -216,7 +216,7 @@ func (d *CLIDownloader) downloadPhotos(ctx context.Context, target Target, dir s
 	// Instagram /p/ иногда оказывается видео, а не фотопостом.
 	videos := collectFiles(dir, videoExtensions)
 	if len(videos) == 0 {
-		return Downloaded{}, fmt.Errorf("%w: gallery-dl не создал ни фото, ни видео", ErrNoMedia)
+		return Downloaded{}, fmt.Errorf("%w: gallery-dl produced neither photos nor video", ErrNoMedia)
 	}
 
 	path := pickLargest(videos)
@@ -228,7 +228,7 @@ func (d *CLIDownloader) downloadPhotos(ctx context.Context, target Target, dir s
 		return Downloaded{}, err
 	}
 	if d.cfg.MaxDuration > 0 && duration > d.cfg.MaxDuration {
-		return Downloaded{}, fmt.Errorf("%w: %d секунд", ErrTooLong, duration)
+		return Downloaded{}, fmt.Errorf("%w: %d seconds", ErrTooLong, duration)
 	}
 
 	return Downloaded{Kind: KindVideo, VideoPath: path, Width: width, Height: height, Duration: duration}, nil
@@ -284,10 +284,10 @@ func (d *CLIDownloader) galleryArgs(target Target, dir string) []string {
 func (d *CLIDownloader) validate(path string) error {
 	info, err := os.Stat(path)
 	if err != nil {
-		return fmt.Errorf("проверка файла: %w", err)
+		return fmt.Errorf("checking file: %w", err)
 	}
 	if info.Size() > d.cfg.MaxFileSize {
-		return fmt.Errorf("%w: %d байт", ErrTooLarge, info.Size())
+		return fmt.Errorf("%w: %d bytes", ErrTooLarge, info.Size())
 	}
 	return nil
 }

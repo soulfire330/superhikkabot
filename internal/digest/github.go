@@ -39,7 +39,7 @@ func (c *Client) github(ctx context.Context, source string) (string, error) {
 	}
 	metaURL := fmt.Sprintf("%s/repos/%s/%s", githubAPI, owner, repo)
 	if err := c.getJSON(ctx, metaURL, &meta); err != nil {
-		return "", fmt.Errorf("репозиторий %s/%s: %w", owner, repo, err)
+		return "", fmt.Errorf("repository %s/%s: %w", owner, repo, err)
 	}
 
 	branch := meta.DefaultBranch
@@ -175,10 +175,10 @@ func (c *Client) getJSON(ctx context.Context, target string, dst any) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("не найдено")
+		return fmt.Errorf("not found")
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("GitHub вернул HTTP %d", resp.StatusCode)
+		return fmt.Errorf("GitHub returned HTTP %d", resp.StatusCode)
 	}
 
 	return json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(dst)
@@ -193,16 +193,16 @@ func repoInfo(source string) (string, string, error) {
 
 	u, err := url.Parse(source)
 	if err != nil {
-		return "", "", fmt.Errorf("некорректная ссылка GitHub: %w", err)
+		return "", "", fmt.Errorf("invalid GitHub link: %w", err)
 	}
 
 	if host := strings.TrimPrefix(strings.ToLower(u.Hostname()), "www."); host != "github.com" {
-		return "", "", fmt.Errorf("это не github.com")
+		return "", "", fmt.Errorf("this is not github.com")
 	}
 
 	parts := strings.Split(strings.Trim(strings.TrimSuffix(u.Path, ".git"), "/"), "/")
 	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
-		return "", "", fmt.Errorf("в ссылке нет owner/repo")
+		return "", "", fmt.Errorf("link has no owner/repo")
 	}
 
 	return parts[0], parts[1], nil

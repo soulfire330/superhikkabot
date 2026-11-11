@@ -101,7 +101,7 @@ func (b *Bot) Handle(ctx context.Context, msg *models.Message) {
 		return
 	case "open", "ask":
 		if strings.TrimSpace(argument) == "" {
-			b.send(ctx, msg, "Напиши вопрос: <code>open что нового в Go 1.27</code>")
+			b.send(ctx, msg, "Ask a question: <code>open what's new in Go 1.27</code>")
 			return
 		}
 		b.answer(ctx, msg, argument)
@@ -175,24 +175,24 @@ func (b *Bot) start(ctx context.Context, msg *models.Message) {
 	_, _ = b.deps.TG.Send(ctx, msg.Chat.ID, msg.ID, welcome)
 }
 
-const welcome = `Привет. Я умею:
-• <code>open &lt;вопрос&gt;</code> — ответить, при нужде поискать в сети
-• <code>tldr &lt;ссылка&gt;</code> — краткое содержание страницы, видео или репозитория
-• <code>tldr</code> реплаем на сообщение или <code>tldr &lt;текст&gt;</code> — тезисный пересказ
-• реплай на сообщение — продолжить разговор с контекстом
-• ссылка на TikTok, Instagram или YouTube Shorts — скачать видео или фото
-• реплай на видео/фото — ответить по содержимому
-• <code>dev &lt;задача&gt;</code> — позвать агента (только админам)
-• <code>deploy</code> — пересобрать и перезапустить бота с текущими правками (только админам)
+const welcome = `Hi. I can:
+• <code>open &lt;question&gt;</code> — answer, searching the web when needed
+• <code>tldr &lt;link&gt;</code> — summarize a page, video or repository
+• <code>tldr</code> as a reply to a message or <code>tldr &lt;text&gt;</code> — key points summary
+• reply to a message — continue the conversation with context
+• a TikTok, Instagram or YouTube Shorts link — download the video or photos
+• reply to a video/photo — answer based on its content
+• <code>dev &lt;task&gt;</code> — call the agent (admins only)
+• <code>deploy</code> — rebuild and restart the bot with current changes (admins only)
 
-В личке можно писать без команды.`
+In a private chat you can write without a command.`
 
 func (b *Bot) dev(ctx context.Context, msg *models.Message, task string) {
 	if b.deps.Harness == nil || !b.deps.Config.IsAdmin(msg.From.ID) {
 		return
 	}
 	if strings.TrimSpace(task) == "" {
-		b.send(ctx, msg, "Напиши задачу: <code>dev добавь команду ping</code>")
+		b.send(ctx, msg, "Describe the task: <code>dev add a ping command</code>")
 		return
 	}
 
@@ -215,7 +215,7 @@ func (b *Bot) dev(ctx context.Context, msg *models.Message, task string) {
 		return
 	}
 	if strings.TrimSpace(answer) == "" {
-		answer = "Готово, но агент ничего не ответил."
+		answer = "Done, but the agent returned no text."
 	}
 	b.replaceOrSend(ctx, msg, placeholder, tg.Markdown(answer))
 
@@ -223,7 +223,7 @@ func (b *Bot) dev(ctx context.Context, msg *models.Message, task string) {
 		return
 	}
 
-	b.send(ctx, msg, "Собираю себя с новыми правками…")
+	b.send(ctx, msg, "Building myself with the new changes…")
 	go b.deploy(task)
 }
 
@@ -249,7 +249,7 @@ func (b *Bot) manualDeploy(ctx context.Context, msg *models.Message) {
 
 	b.deps.TG.Typing(ctx, msg.Chat.ID)
 
-	ids, err := b.deps.TG.Send(ctx, msg.Chat.ID, msg.ID, "Собираю себя с текущими правками…")
+	ids, err := b.deps.TG.Send(ctx, msg.Chat.ID, msg.ID, "Building myself with the current changes…")
 	placeholder := 0
 	if err != nil {
 		b.deps.Logger.Printf("telegram: отправка не удалась: %v", err)
@@ -271,7 +271,7 @@ func (b *Bot) manualDeploy(ctx context.Context, msg *models.Message) {
 		if err != nil {
 			b.deps.Logger.Printf("deploy: %v", err)
 			harness.ClearDeployNote()
-			text := "⚠️ Сборка не прошла: " + tg.Escape(err.Error())
+			text := "⚠️ Build failed: " + tg.Escape(err.Error())
 			if messageID != 0 {
 				_, _ = b.deps.TG.Replace(dctx, chatID, messageID, text)
 			} else {
@@ -299,7 +299,7 @@ func (b *Bot) digest(ctx context.Context, msg *models.Message, argument string) 
 		text = messageText(msg.ReplyToMessage)
 	}
 	if text == "" {
-		b.send(ctx, msg, "Дай ссылку или текст: <code>tldr https://…</code>, <code>tldr &lt;текст&gt;</code> или реплай на сообщение")
+		b.send(ctx, msg, "Give me a link or text: <code>tldr https://…</code>, <code>tldr &lt;text&gt;</code> or a reply to a message")
 		return
 	}
 
@@ -335,7 +335,7 @@ func (b *Bot) mediaLink(ctx context.Context, msg *models.Message, link string) {
 // linkHint подсказывает про tldr, когда ссылка не медийная.
 func (b *Bot) linkHint(ctx context.Context, msg *models.Message, link string) {
 	b.send(ctx, msg, fmt.Sprintf(
-		"Скачиваю только TikTok, Instagram и YouTube Shorts. Для содержания: <code>tldr %s</code>",
+		"I only download TikTok, Instagram and YouTube Shorts. For content: <code>tldr %s</code>",
 		tg.Escape(link),
 	))
 }

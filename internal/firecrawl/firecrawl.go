@@ -71,10 +71,10 @@ func (c *Client) searchTool(ctx context.Context, args string) (string, error) {
 		Query string `json:"query"`
 	}
 	if err := json.Unmarshal([]byte(args), &params); err != nil {
-		return "", fmt.Errorf("некорректные аргументы поиска: %w", err)
+		return "", fmt.Errorf("invalid search arguments: %w", err)
 	}
 	if strings.TrimSpace(params.Query) == "" {
-		return "", fmt.Errorf("пустой поисковый запрос")
+		return "", fmt.Errorf("empty search query")
 	}
 
 	results, err := c.search(ctx, params.Query)
@@ -87,7 +87,7 @@ func (c *Client) searchTool(ctx context.Context, args string) (string, error) {
 		fmt.Fprintf(&builder, "%d. %s — %s\n%s\n\n", i+1, item.Title, item.URL, truncateRunes(item.Description, maxDescriptionRunes))
 	}
 	if builder.Len() == 0 {
-		return "По запросу ничего не найдено.", nil
+		return "Nothing found for the query.", nil
 	}
 	return strings.TrimSpace(builder.String()), nil
 }
@@ -100,7 +100,7 @@ type searchResult struct {
 
 func (c *Client) search(ctx context.Context, query string) ([]searchResult, error) {
 	if !c.Enabled() {
-		return nil, fmt.Errorf("веб-поиск не настроен: нет FIRECRAWL_API_KEY")
+		return nil, fmt.Errorf("web search is not configured: FIRECRAWL_API_KEY is missing")
 	}
 
 	payload, _ := json.Marshal(map[string]any{"query": query, "limit": maxResults})
@@ -110,7 +110,7 @@ func (c *Client) search(ctx context.Context, query string) ([]searchResult, erro
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v2/search", bytes.NewReader(payload))
 	if err != nil {
-		return nil, fmt.Errorf("создание поискового запроса: %w", err)
+		return nil, fmt.Errorf("creating search request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
@@ -121,7 +121,7 @@ func (c *Client) search(ctx context.Context, query string) ([]searchResult, erro
 		} `json:"data"`
 	}
 	if err := c.do(req, &response); err != nil {
-		return nil, fmt.Errorf("веб-поиск: %w", err)
+		return nil, fmt.Errorf("web search: %w", err)
 	}
 
 	return response.Data.Web, nil
@@ -131,7 +131,7 @@ func (c *Client) search(ctx context.Context, query string) ([]searchResult, erro
 // не справился (SPA, антибот).
 func (c *Client) Scrape(ctx context.Context, targetURL string) (string, error) {
 	if !c.Enabled() {
-		return "", fmt.Errorf("Firecrawl не настроен")
+		return "", fmt.Errorf("Firecrawl is not configured")
 	}
 
 	payload, _ := json.Marshal(map[string]any{
@@ -142,7 +142,7 @@ func (c *Client) Scrape(ctx context.Context, targetURL string) (string, error) {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v2/scrape", bytes.NewReader(payload))
 	if err != nil {
-		return "", fmt.Errorf("создание запроса scrape: %w", err)
+		return "", fmt.Errorf("creating scrape request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
@@ -173,7 +173,7 @@ func (c *Client) do(req *http.Request, target any) error {
 
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodyBytes))
 	if err != nil {
-		return fmt.Errorf("чтение ответа: %w", err)
+		return fmt.Errorf("reading response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, truncateRunes(string(raw), 300))

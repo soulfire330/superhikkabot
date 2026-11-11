@@ -176,7 +176,7 @@ func (s *Service) BindGroup(ctx context.Context, sourceURL string, paths []strin
 	for i, path := range paths {
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return fmt.Errorf("чтение фото: %w", err)
+			return fmt.Errorf("reading photo: %w", err)
 		}
 		cached, err := s.write(fmt.Sprintf("sent|%s|%d", sourceURL, i), data)
 		if err != nil {
@@ -304,7 +304,7 @@ func (s *Service) write(key string, data []byte) (string, error) {
 	}
 
 	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return "", fmt.Errorf("запись фото в кэш: %w", err)
+		return "", fmt.Errorf("writing photo to cache: %w", err)
 	}
 
 	return path, nil
@@ -312,7 +312,7 @@ func (s *Service) write(key string, data []byte) (string, error) {
 
 func (s *Service) cachePath(key string) (string, error) {
 	if err := os.MkdirAll(s.cfg.Dir, 0o755); err != nil {
-		return "", fmt.Errorf("каталог кэша фото: %w", err)
+		return "", fmt.Errorf("photo cache directory: %w", err)
 	}
 
 	sum := sha1.Sum([]byte(key))

@@ -57,12 +57,12 @@ func (c *Client) youtube(ctx context.Context, source string) (string, error) {
 
 	tracks := player.Captions.Renderer.CaptionTracks
 	if len(tracks) == 0 {
-		return "", fmt.Errorf("у видео нет субтитров, пересказать нечем")
+		return "", fmt.Errorf("the video has no subtitles, nothing to summarize")
 	}
 
 	track := selectTrack(tracks, c.language)
 	if track == nil {
-		return "", fmt.Errorf("не нашёл подходящей дорожки субтитров")
+		return "", fmt.Errorf("no suitable subtitle track found")
 	}
 
 	transcript, err := c.fetchTranscript(ctx, track.BaseURL)
@@ -70,7 +70,7 @@ func (c *Client) youtube(ctx context.Context, source string) (string, error) {
 		return "", err
 	}
 	if strings.TrimSpace(transcript) == "" {
-		return "", fmt.Errorf("транскрипт пустой")
+		return "", fmt.Errorf("transcript is empty")
 	}
 
 	return fmt.Sprintf(
@@ -98,7 +98,7 @@ func (c *Client) fetchPlayer(ctx context.Context, videoID string) (*playerRespon
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, innerTubeURL, bytes.NewReader(payload))
 	if err != nil {
-		return nil, fmt.Errorf("запрос InnerTube: %w", err)
+		return nil, fmt.Errorf("InnerTube request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", youtubeUserAgent)
@@ -110,16 +110,16 @@ func (c *Client) fetchPlayer(ctx context.Context, videoID string) (*playerRespon
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("InnerTube вернул HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("InnerTube returned HTTP %d", resp.StatusCode)
 	}
 
 	var player playerResponse
 	if err := json.NewDecoder(resp.Body).Decode(&player); err != nil {
-		return nil, fmt.Errorf("разбор ответа InnerTube: %w", err)
+		return nil, fmt.Errorf("parsing InnerTube response: %w", err)
 	}
 
 	if player.PlayabilityStatus.Status != "" && player.PlayabilityStatus.Status != "OK" {
-		return nil, fmt.Errorf("видео недоступно: %s %s", player.PlayabilityStatus.Status, player.PlayabilityStatus.Reason)
+		return nil, fmt.Errorf("video unavailable: %s %s", player.PlayabilityStatus.Status, player.PlayabilityStatus.Reason)
 	}
 
 	return &player, nil
@@ -130,17 +130,17 @@ func (c *Client) fetchTranscript(ctx context.Context, baseURL string) (string, e
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return "", fmt.Errorf("запрос субтитров: %w", err)
+		return "", fmt.Errorf("subtitle request: %w", err)
 	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("субтитры: %w", err)
+		return "", fmt.Errorf("subtitles: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("субтитры вернули HTTP %d", resp.StatusCode)
+		return "", fmt.Errorf("subtitles returned HTTP %d", resp.StatusCode)
 	}
 
 	return parseTranscript(resp.Body)
@@ -156,7 +156,7 @@ func parseTranscript(body io.Reader) (string, error) {
 		} `json:"events"`
 	}
 	if err := json.NewDecoder(body).Decode(&payload); err != nil {
-		return "", fmt.Errorf("разбор субтитров: %w", err)
+		return "", fmt.Errorf("parsing subtitles: %w", err)
 	}
 
 	var builder strings.Builder
@@ -242,7 +242,7 @@ func extractVideoID(source string) (string, error) {
 
 	u, err := url.Parse(source)
 	if err != nil {
-		return "", fmt.Errorf("некорректная ссылка YouTube: %w", err)
+		return "", fmt.Errorf("invalid YouTube link: %w", err)
 	}
 
 	host := strings.TrimPrefix(strings.TrimPrefix(strings.ToLower(u.Hostname()), "www."), "m.")
@@ -268,5 +268,5 @@ func extractVideoID(source string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("не нашёл id видео в ссылке")
+	return "", fmt.Errorf("no video id found in the link")
 }

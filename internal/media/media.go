@@ -27,11 +27,11 @@ const (
 func (k Kind) String() string {
 	switch k {
 	case KindVideo:
-		return "видео"
+		return "video"
 	case KindPhoto:
-		return "фото"
+		return "photo"
 	default:
-		return "авто"
+		return "auto"
 	}
 }
 
@@ -56,13 +56,13 @@ type Downloaded struct {
 
 var (
 	// ErrUnsupported — ссылка не относится к поддерживаемым площадкам.
-	ErrUnsupported = errors.New("ссылка не поддерживается")
+	ErrUnsupported = errors.New("unsupported link")
 	// ErrTooLarge — файл больше лимита.
-	ErrTooLarge = errors.New("файл слишком большой")
+	ErrTooLarge = errors.New("file is too large")
 	// ErrTooLong — видео длиннее лимита.
-	ErrTooLong = errors.New("видео слишком длинное")
+	ErrTooLong = errors.New("video is too long")
 	// ErrNoMedia — инструмент ничего не скачал.
-	ErrNoMedia = errors.New("медиа не найдено")
+	ErrNoMedia = errors.New("no media found")
 )
 
 // VideoSaver сохраняет артефакты скачанного видео для будущих вопросов.

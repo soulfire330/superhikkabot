@@ -182,14 +182,14 @@ func (c *Client) withTools(ctx context.Context, prompt string) (string, error) {
 			return "", err
 		}
 		if len(resp.Choices) == 0 {
-			return "", fmt.Errorf("пустой список choices")
+			return "", fmt.Errorf("empty choices list")
 		}
 
 		choice := resp.Choices[0].Message
 		if len(choice.ToolCalls) == 0 {
 			text, _ := choice.Content.(string)
 			if strings.TrimSpace(text) == "" {
-				return "", fmt.Errorf("модель не вернула текст")
+				return "", fmt.Errorf("model returned no text")
 			}
 			return text, nil
 		}
@@ -215,12 +215,12 @@ func (c *Client) runTool(ctx context.Context, call toolCall) string {
 		c.logf("llm: инструмент %s(%s)", tool.Name, truncate(call.Function.Arguments, 200))
 		result, err := tool.Execute(ctx, call.Function.Arguments)
 		if err != nil {
-			return "ошибка: " + err.Error()
+			return "error: " + err.Error()
 		}
 		return result
 	}
 
-	return "ошибка: неизвестный инструмент " + call.Function.Name
+	return "error: unknown tool " + call.Function.Name
 }
 
 func (c *Client) toolSpecs(last bool) []toolSpec {
@@ -266,12 +266,12 @@ func (c *Client) Raw(ctx context.Context, system, user string, jsonMode bool) (s
 		return "", err
 	}
 	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("пустой список choices")
+		return "", fmt.Errorf("empty choices list")
 	}
 
 	text, _ := resp.Choices[0].Message.Content.(string)
 	if strings.TrimSpace(text) == "" {
-		return "", fmt.Errorf("модель не вернула текст")
+		return "", fmt.Errorf("model returned no text")
 	}
 	return text, nil
 }
@@ -316,12 +316,12 @@ func (c *Client) CompleteWithImages(ctx context.Context, prompt string, images [
 		return "", err
 	}
 	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("пустой список choices")
+		return "", fmt.Errorf("empty choices list")
 	}
 
 	text, _ := resp.Choices[0].Message.Content.(string)
 	if strings.TrimSpace(text) == "" {
-		return "", fmt.Errorf("модель не вернула текст")
+		return "", fmt.Errorf("model returned no text")
 	}
 	return text, nil
 }
@@ -347,7 +347,7 @@ func (c *Client) call(ctx context.Context, messages []message, tools []toolSpec)
 func (c *Client) post(ctx context.Context, body map[string]any) (*chatResponse, error) {
 	data, err := json.Marshal(body)
 	if err != nil {
-		return nil, fmt.Errorf("маршалинг запроса: %w", err)
+		return nil, fmt.Errorf("marshaling request: %w", err)
 	}
 
 	reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
@@ -355,7 +355,7 @@ func (c *Client) post(ctx context.Context, body map[string]any) (*chatResponse, 
 
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, c.url, bytes.NewReader(data))
 	if err != nil {
-		return nil, fmt.Errorf("создание запроса: %w", err)
+		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
@@ -365,24 +365,24 @@ func (c *Client) post(ctx context.Context, body map[string]any) (*chatResponse, 
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("запрос к LLM: %w", err)
+		return nil, fmt.Errorf("LLM request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodyBytes))
 	if err != nil {
-		return nil, fmt.Errorf("чтение ответа LLM: %w", err)
+		return nil, fmt.Errorf("reading LLM response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("LLM вернул HTTP %d: %s", resp.StatusCode, truncate(string(raw), 500))
+		return nil, fmt.Errorf("LLM returned HTTP %d: %s", resp.StatusCode, truncate(string(raw), 500))
 	}
 
 	var result chatResponse
 	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, fmt.Errorf("разбор ответа LLM: %w", err)
+		return nil, fmt.Errorf("parsing LLM response: %w", err)
 	}
 	if result.Error != nil {
-		return nil, fmt.Errorf("ошибка LLM: %s", result.Error.Message)
+		return nil, fmt.Errorf("LLM error: %s", result.Error.Message)
 	}
 	return &result, nil
 }

@@ -124,7 +124,7 @@ func (s *Store) SaveVideo(ctx context.Context, sourceURL, videoPath string, chat
 	key := cacheKey(sourceURL, chatID, messageID)
 	dir := filepath.Join(s.cfg.Dir, key)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("каталог артефактов: %w", err)
+		return fmt.Errorf("artifacts directory: %w", err)
 	}
 
 	probeDuration := duration
@@ -237,7 +237,7 @@ func (s *Store) extractFrames(ctx context.Context, videoPath, dir string, durati
 			path,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("кадр %d: %w", i, err)
+			return nil, fmt.Errorf("frame %d: %w", i, err)
 		}
 		frames = append(frames, path)
 	}

@@ -14,7 +14,7 @@ import (
 
 const (
 	queueCapacity   = 50
-	placeholderText = "⏳ Загрузка…"
+	placeholderText = "⏳ Downloading…"
 )
 
 // Config — настройки фоновой очереди.
@@ -116,9 +116,9 @@ func (s *Service) Submit(ctx context.Context, chatID int64, replyTo int, url str
 		return nil
 	default:
 		if placeholder != 0 {
-			_ = s.tg.Edit(ctx, chatID, placeholder, "Слишком много загрузок, попробуй позже.")
+			_ = s.tg.Edit(ctx, chatID, placeholder, "Too many downloads, try again later.")
 		}
-		return errors.New("очередь загрузок заполнена")
+		return errors.New("download queue is full")
 	}
 }
 
@@ -128,7 +128,7 @@ func (s *Service) run(parent context.Context, req Request) {
 
 	tmp, err := os.MkdirTemp(s.cfg.TempDir, "media-")
 	if err != nil {
-		s.fail(ctx, req, fmt.Errorf("временный каталог: %w", err))
+		s.fail(ctx, req, fmt.Errorf("temp directory: %w", err))
 		return
 	}
 	defer os.RemoveAll(tmp)
@@ -153,14 +153,14 @@ func (s *Service) run(parent context.Context, req Request) {
 	case KindPhoto:
 		s.sendPhotos(ctx, req, got)
 	default:
-		s.fail(ctx, req, fmt.Errorf("неизвестный тип медиа"))
+		s.fail(ctx, req, fmt.Errorf("unknown media kind"))
 	}
 }
 
 func (s *Service) sendVideo(ctx context.Context, req Request, got Downloaded) {
 	id, err := s.tg.SendVideo(ctx, req.ChatID, req.ReplyTo, got.VideoPath, got.Width, got.Height, got.Duration)
 	if err != nil {
-		s.fail(ctx, req, fmt.Errorf("видео не отправилось: %w", err))
+		s.fail(ctx, req, fmt.Errorf("video was not sent: %w", err))
 		return
 	}
 
@@ -177,7 +177,7 @@ func (s *Service) sendVideo(ctx context.Context, req Request, got Downloaded) {
 func (s *Service) sendPhotos(ctx context.Context, req Request, got Downloaded) {
 	ids, err := s.tg.SendPhotos(ctx, req.ChatID, req.ReplyTo, got.ImagePaths)
 	if err != nil {
-		s.fail(ctx, req, fmt.Errorf("фото не отправились: %w", err))
+		s.fail(ctx, req, fmt.Errorf("photos were not sent: %w", err))
 		return
 	}
 
@@ -213,16 +213,16 @@ func (s *Service) fail(ctx context.Context, req Request, err error) {
 func failText(err error) string {
 	switch {
 	case errors.Is(err, ErrUnsupported):
-		return "Эту ссылку не умею: поддержаны TikTok, Instagram и YouTube Shorts."
+		return "I cannot handle this link: only TikTok, Instagram and YouTube Shorts are supported."
 	case errors.Is(err, ErrTooLarge):
-		return "⚠️ Файл больше 50 МБ, Telegram такое не примет."
+		return "⚠️ The file is larger than 50 MB, Telegram will not accept it."
 	case errors.Is(err, ErrTooLong):
-		return "⚠️ Видео слишком длинное."
+		return "⚠️ The video is too long."
 	case errors.Is(err, ErrNoMedia):
-		return "⚠️ Ссылка открылась, но медиа там нет."
+		return "⚠️ The link opened, but there is no media there."
 	case errors.Is(err, context.DeadlineExceeded):
-		return "⚠️ Скачивание не уложилось в таймаут."
+		return "⚠️ The download timed out."
 	default:
-		return "⚠️ Не получилось скачать: " + err.Error()
+		return "⚠️ Download failed: " + err.Error()
 	}
 }

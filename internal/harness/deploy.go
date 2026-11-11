@@ -23,11 +23,11 @@ const (
 func (r *Runner) Deploy(ctx context.Context, note string) (string, error) {
 	exe, err := os.Executable()
 	if err != nil {
-		return "", fmt.Errorf("путь к бинарнику: %w", err)
+		return "", fmt.Errorf("binary path: %w", err)
 	}
 	exe, err = filepath.Abs(exe)
 	if err != nil {
-		return "", fmt.Errorf("путь к бинарнику: %w", err)
+		return "", fmt.Errorf("binary path: %w", err)
 	}
 
 	if err := r.command(ctx, "git", "add", "-A"); err != nil {
@@ -37,26 +37,26 @@ func (r *Runner) Deploy(ctx context.Context, note string) (string, error) {
 	_ = r.command(ctx, "git", "commit", "-m", "dev: "+firstLine(note))
 
 	if err := r.command(ctx, "go", "vet", "./..."); err != nil {
-		return "go vet не прошёл, остаюсь на старом бинарнике:\n" + err.Error(), nil
+		return "go vet failed, staying on the old binary:\n" + err.Error(), nil
 	}
 
 	target := filepath.Join(filepath.Dir(exe), newBinary)
 	if err := r.command(ctx, "go", "build", "-o", target, "./cmd/bot"); err != nil {
-		return "сборка не прошла, остаюсь на старом бинарнике:\n" + err.Error(), nil
+		return "build failed, staying on the old binary:\n" + err.Error(), nil
 	}
 
 	previous := filepath.Join(filepath.Dir(exe), prevBinary)
 	_ = os.Remove(previous)
 	if err := os.Rename(exe, previous); err != nil {
-		return "", fmt.Errorf("не смог отложить прошлый бинарник: %w", err)
+		return "", fmt.Errorf("could not move the previous binary aside: %w", err)
 	}
 	if err := os.Rename(target, exe); err != nil {
 		_ = os.Rename(previous, exe)
-		return "", fmt.Errorf("не смог поставить новый бинарник: %w", err)
+		return "", fmt.Errorf("could not install the new binary: %w", err)
 	}
 
 	r.logger.Printf("harness: перезапуск в новый бинарник %s", exe)
-	return "Перезапускаюсь с новым бинарником.", Exec(exe)
+	return "Restarting with the new binary.", Exec(exe)
 }
 
 // Head возвращает короткий хеш HEAD рабочей копии — для отчёта о деплое.

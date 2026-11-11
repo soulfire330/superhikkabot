@@ -104,7 +104,7 @@ func (r *Runner) Run(ctx context.Context, chatID int64, prompt string) (string, 
 
 	if _, err := process.stdin.Write(append(command, '\n')); err != nil {
 		r.drop(chatID)
-		return "", fmt.Errorf("pi: отправка задачи: %w", err)
+		return "", fmt.Errorf("pi: sending the task: %w", err)
 	}
 
 	return r.wait(ctx, chatID, process)
@@ -120,7 +120,7 @@ func (r *Runner) wait(ctx context.Context, chatID int64, process *proc) (string,
 
 		case <-process.exited:
 			r.drop(chatID)
-			return "", errors.New("pi: процесс завершился")
+			return "", errors.New("pi: process exited")
 
 		case event := <-process.events:
 			switch event.Type {
@@ -136,10 +136,10 @@ func (r *Runner) wait(ctx context.Context, chatID int64, process *proc) (string,
 				}
 			case "agent_settled":
 				if event.Aborted {
-					return "", errors.New("pi: выполнение прервано")
+					return "", errors.New("pi: run aborted")
 				}
 				if answer == "" {
-					return "", errors.New("pi: агент закончил без текста")
+					return "", errors.New("pi: agent finished without any text")
 				}
 				return answer, nil
 			}
@@ -192,7 +192,7 @@ func (r *Runner) spawn(chatID int64) (*proc, error) {
 	cmd.Stderr = stderr
 
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("pi не запустился (%s): %w", r.cfg.Binary, err)
+		return nil, fmt.Errorf("pi failed to start (%s): %w", r.cfg.Binary, err)
 	}
 
 	process := &proc{
