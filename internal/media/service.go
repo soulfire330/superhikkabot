@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"superhikkabot/internal/tg"
+	"github.com/soulfire330/superhikkabot/internal/tg"
 )
 
 const (

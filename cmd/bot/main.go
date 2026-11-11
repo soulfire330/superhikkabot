@@ -12,18 +12,18 @@ import (
 
 	"github.com/go-telegram/bot/models"
 
-	"superhikkabot/internal/bot"
-	"superhikkabot/internal/config"
-	"superhikkabot/internal/dialog"
-	"superhikkabot/internal/digest"
-	"superhikkabot/internal/firecrawl"
-	"superhikkabot/internal/harness"
-	"superhikkabot/internal/llm"
-	"superhikkabot/internal/media"
-	"superhikkabot/internal/photo"
-	"superhikkabot/internal/proxy"
-	"superhikkabot/internal/tg"
-	"superhikkabot/internal/video"
+	"github.com/soulfire330/superhikkabot/internal/bot"
+	"github.com/soulfire330/superhikkabot/internal/config"
+	"github.com/soulfire330/superhikkabot/internal/dialog"
+	"github.com/soulfire330/superhikkabot/internal/digest"
+	"github.com/soulfire330/superhikkabot/internal/firecrawl"
+	"github.com/soulfire330/superhikkabot/internal/harness"
+	"github.com/soulfire330/superhikkabot/internal/llm"
+	"github.com/soulfire330/superhikkabot/internal/media"
+	"github.com/soulfire330/superhikkabot/internal/photo"
+	"github.com/soulfire330/superhikkabot/internal/proxy"
+	"github.com/soulfire330/superhikkabot/internal/tg"
+	"github.com/soulfire330/superhikkabot/internal/video"
 )
 
 func main() {

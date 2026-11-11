@@ -105,3 +105,9 @@ Reply-ветки (TTL 100 минут), привязка артефактов в�
 ```
 make check     # gofmt, go vet, go test -race
 ```
+
+## Лицензия
+
+MIT, см. [LICENSE](LICENSE). Дайджест-экстракторы портированы из
+[summario](https://github.com/wxtering/summario) (MIT, © 2026 wxtering) —
+подробности в [NOTICE](NOTICE).

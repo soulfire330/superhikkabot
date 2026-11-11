@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"superhikkabot/internal/firecrawl"
-	"superhikkabot/internal/llm"
+	"github.com/soulfire330/superhikkabot/internal/firecrawl"
+	"github.com/soulfire330/superhikkabot/internal/llm"
 )
 
 // Result — готовый дайджест.

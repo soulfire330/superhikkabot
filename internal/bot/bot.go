@@ -12,15 +12,15 @@ import (
 
 	"github.com/go-telegram/bot/models"
 
-	"superhikkabot/internal/config"
-	"superhikkabot/internal/dialog"
-	"superhikkabot/internal/digest"
-	"superhikkabot/internal/harness"
-	"superhikkabot/internal/llm"
-	"superhikkabot/internal/media"
-	"superhikkabot/internal/photo"
-	"superhikkabot/internal/tg"
-	"superhikkabot/internal/video"
+	"github.com/soulfire330/superhikkabot/internal/config"
+	"github.com/soulfire330/superhikkabot/internal/dialog"
+	"github.com/soulfire330/superhikkabot/internal/digest"
+	"github.com/soulfire330/superhikkabot/internal/harness"
+	"github.com/soulfire330/superhikkabot/internal/llm"
+	"github.com/soulfire330/superhikkabot/internal/media"
+	"github.com/soulfire330/superhikkabot/internal/photo"
+	"github.com/soulfire330/superhikkabot/internal/tg"
+	"github.com/soulfire330/superhikkabot/internal/video"
 )
 
 var linkPattern = regexp.MustCompile(`https?://[^\s<>"']+`)

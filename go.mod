@@ -1,4 +1,4 @@
-module superhikkabot
+module github.com/soulfire330/superhikkabot
 
 go 1.27.2
 

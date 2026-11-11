@@ -21,7 +21,7 @@ const (
 	maxResponseBodyBytes = 10 << 20
 	maxVisionImages      = 8
 	visionMaxTokens      = 1200
-	userAgent            = "superhikkabot/1.0"
+	userAgent            = "github.com/soulfire330/superhikkabot/1.0"
 )
 
 const systemPrompt = `Ты полезный ассистент в Telegram.

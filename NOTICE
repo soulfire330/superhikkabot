@@ -1,0 +1,14 @@
+superhikkabot
+Copyright (c) 2026 soulfire330
+
+Часть кода портирована из проекта summario
+(https://github.com/wxtering/summario), лицензия MIT,
+Copyright (c) 2026 wxtering:
+
+  internal/digest/youtube.go   — получение транскрипта через InnerTube
+  internal/digest/github.go    — метаданные репозитория, дерево файлов, README
+  internal/digest/web.go       — извлечение текста страницы (trafilatura + Firecrawl)
+  internal/digest/digest.go    — промпт суммаризации
+
+Текст лицензии MIT для этих файлов совпадает с LICENSE в корне репозитория,
+копирайт правообладателя сохранён в этом файле.

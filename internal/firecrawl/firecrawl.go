@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"superhikkabot/internal/llm"
+	"github.com/soulfire330/superhikkabot/internal/llm"
 )
 
 const (
