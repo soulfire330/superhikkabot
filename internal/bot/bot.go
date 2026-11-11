@@ -47,6 +47,9 @@ type Bot struct {
 	// отвечаем один раз, остальные апдейты группы пропускаем.
 	albumMu  sync.Mutex
 	answered map[string]time.Time
+
+	// ignored хранит чаты, которым бот уже сказал "молчу" в лог: один раз на чат.
+	ignored sync.Map
 }
 
 // New собирает роутер.
@@ -83,6 +86,9 @@ func (b *Bot) Handle(ctx context.Context, msg *models.Message) {
 	}
 
 	command, argument := splitCommand(text)
+	if b.deps.Logger != nil {
+		b.deps.Logger.Printf("сообщение: chat=%d from=%d command=%q len=%d", msg.Chat.ID, msg.From.ID, command, len(text))
+	}
 	switch command {
 	case "dev":
 		b.dev(ctx, msg, argument)
@@ -138,7 +144,14 @@ func (b *Bot) allowed(msg *models.Message) bool {
 		return true
 	}
 	// Админу разрешена личка: его id уже в конфиге, дублировать в allowed_chats незачем.
-	return isPrivate(msg) && b.deps.Config.IsAdmin(msg.From.ID)
+	if isPrivate(msg) && b.deps.Config.IsAdmin(msg.From.ID) {
+		return true
+	}
+	// Один раз на чат: без этого непонятно, какой id добавлять в allowed_chats.
+	if _, seen := b.ignored.LoadOrStore(msg.Chat.ID, true); !seen && b.deps.Logger != nil {
+		b.deps.Logger.Printf("игнорирую чат %d (type=%s, title=%q, from=%d)", msg.Chat.ID, msg.Chat.Type, msg.Chat.Title, msg.From.ID)
+	}
+	return false
 }
 
 func messageText(msg *models.Message) string {
