@@ -21,10 +21,13 @@ const (
 	maxResponseBodyBytes = 10 << 20
 	maxVisionImages      = 8
 	visionMaxTokens      = 1200
+	answerMaxTokens      = 800
 	userAgent            = "github.com/soulfire330/superhikkabot/1.0"
 )
 
-const systemPrompt = `Ты полезный ассистент в Telegram.
+const systemPrompt = `Ты полезный ассистент в Telegram. Пиши сжато: 3-6 предложений или
+2-5 пунктов, не больше 700 символов, если в вопросе не просят подробный разбор.
+Без вступлений вроде "Конечно" и "Отличный вопрос", без итогового резюме и повторов.
 Ответ уходит с parse_mode=HTML, поэтому разметка — только эти теги:
 <b>, <i>, <u>, <s>, <a href="URL">текст</a>, <code>, <pre>, <blockquote>.
 Markdown запрещён: никаких **, #, бектиков и [текст](url). Абзацы и списки — обычными
@@ -237,6 +240,8 @@ func (c *Client) Raw(ctx context.Context, system, user string, jsonMode bool) (s
 	}
 	if jsonMode {
 		body["response_format"] = map[string]string{"type": "json_object"}
+	} else {
+		body["max_tokens"] = answerMaxTokens
 	}
 	if c.reasoning != "" {
 		body["reasoning_effort"] = c.reasoning
@@ -315,6 +320,8 @@ func (c *Client) call(ctx context.Context, messages []message, tools []toolSpec)
 	}
 	if len(tools) > 0 {
 		body["tools"] = tools
+	} else {
+		body["max_tokens"] = answerMaxTokens
 	}
 	if c.reasoning != "" {
 		body["reasoning_effort"] = c.reasoning

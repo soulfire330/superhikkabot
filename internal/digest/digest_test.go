@@ -121,3 +121,17 @@ func TestStripFences(t *testing.T) {
 		t.Errorf("получили %q", got)
 	}
 }
+
+func TestTextLimit(t *testing.T) {
+	cases := map[int]int{
+		100:   120, // короткий текст: не даём модели разойтись
+		1000:  500, // ровно половина
+		10000: 900, // потолок для длинных сообщений
+	}
+
+	for runes, want := range cases {
+		if got := textLimit(runes); got != want {
+			t.Errorf("textLimit(%d) = %d, хотели %d", runes, got, want)
+		}
+	}
+}

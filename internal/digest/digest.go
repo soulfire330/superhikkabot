@@ -144,6 +144,45 @@ const summarySystem = `Ты — объективный суммаризатор.
 Ответ — строго JSON без markdown-обёртки: {"title": "...", "summary": "..."}.
 title — короткий заголовок содержимого, summary — само содержание.`
 
+const textSystem = `Ты сжимаешь текст в пересказ для Telegram. Верни только тезисы:
+3-7 пунктов через "• ", каждый — одна мысль, без вступлений вроде "В тексте говорится"
+и без выводов от себя. Уложись в %d символов и будь заметно короче исходного текста:
+лучше выкинуть деталь, чем пересказать всё. Разметка — Telegram HTML:
+<b>, <i>, <code>, <a href="URL">. Markdown запрещён.`
+
+// TextSummary пересказывает текст тезисно и короче исходника.
+func (c *Client) TextSummary(ctx context.Context, text string) (string, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return "", fmt.Errorf("нечего пересказывать")
+	}
+
+	system := fmt.Sprintf(textSystem, textLimit(len([]rune(text))))
+	raw, err := c.llm.Raw(ctx, system, "Текст:\n"+truncateRunes(text, 8000), false)
+	if err != nil {
+		return "", fmt.Errorf("пересказ текста: %w", err)
+	}
+
+	summary := strings.TrimSpace(raw)
+	if summary == "" {
+		return "", fmt.Errorf("модель вернула пустой пересказ")
+	}
+	return summary, nil
+}
+
+// textLimit — сколько символов разрешить в пересказе: половина исходника,
+// но не меньше 120 и не больше 900.
+func textLimit(runes int) int {
+	limit := runes / 2
+	if limit < 120 {
+		limit = 120
+	}
+	if limit > 900 {
+		limit = 900
+	}
+	return limit
+}
+
 func (c *Client) summarize(ctx context.Context, kind, source, text string) (string, string, error) {
 	prompt := fmt.Sprintf(
 		"Тип источника: %s\nСсылка: %s\nЯзык ответа: %s\n\nТекст:\n%s",

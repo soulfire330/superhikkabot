@@ -68,10 +68,7 @@ func (b *Bot) Handle(ctx context.Context, msg *models.Message) {
 		b.deps.Photo.Observe(msg)
 	}
 
-	text := strings.TrimSpace(msg.Text)
-	if text == "" {
-		text = strings.TrimSpace(msg.Caption)
-	}
+	text := messageText(msg)
 
 	mentioned := false
 	if text != "" {
@@ -144,6 +141,16 @@ func (b *Bot) allowed(msg *models.Message) bool {
 	return isPrivate(msg) && b.deps.Config.IsAdmin(msg.From.ID)
 }
 
+func messageText(msg *models.Message) string {
+	if msg == nil {
+		return ""
+	}
+	if text := strings.TrimSpace(msg.Text); text != "" {
+		return text
+	}
+	return strings.TrimSpace(msg.Caption)
+}
+
 func isPrivate(msg *models.Message) bool {
 	return string(msg.Chat.Type) == "private"
 }
@@ -155,6 +162,7 @@ func (b *Bot) start(ctx context.Context, msg *models.Message) {
 const welcome = `Привет. Я умею:
 • <code>open &lt;вопрос&gt;</code> — ответить, при нужде поискать в сети
 • <code>tldr &lt;ссылка&gt;</code> — краткое содержание страницы, видео или репозитория
+• <code>tldr</code> реплаем на сообщение или <code>tldr &lt;текст&gt;</code> — тезисный пересказ
 • реплай на сообщение — продолжить разговор с контекстом
 • ссылка на TikTok, Instagram или YouTube Shorts — скачать видео или фото
 • реплай на видео/фото — ответить по содержимому
@@ -207,11 +215,33 @@ func (b *Bot) digest(ctx context.Context, msg *models.Message, argument string) 
 	if source == "" {
 		source = firstLink(msg.Text)
 	}
-	if source == "" {
-		b.send(ctx, msg, "Дай ссылку: <code>tldr https://…</code>")
+	if source != "" {
+		b.digestLink(ctx, msg, source)
 		return
 	}
 
+	// Ссылки нет — пересказываем текст: аргумент команды или сообщение, на которое ответили.
+	text := strings.TrimSpace(argument)
+	if text == "" && msg.ReplyToMessage != nil {
+		text = messageText(msg.ReplyToMessage)
+	}
+	if text == "" {
+		b.send(ctx, msg, "Дай ссылку или текст: <code>tldr https://…</code>, <code>tldr &lt;текст&gt;</code> или реплай на сообщение")
+		return
+	}
+
+	b.deps.TG.Typing(ctx, msg.Chat.ID)
+
+	summary, err := b.deps.Digest.TextSummary(ctx, text)
+	if err != nil {
+		b.send(ctx, msg, "⚠️ "+tg.Escape(err.Error()))
+		return
+	}
+
+	b.send(ctx, msg, summary)
+}
+
+func (b *Bot) digestLink(ctx context.Context, msg *models.Message, source string) {
 	b.deps.TG.Typing(ctx, msg.Chat.ID)
 
 	result, err := b.deps.Digest.Summary(ctx, source)

@@ -105,3 +105,22 @@ func TestIgnoresStrangers(t *testing.T) {
 		router.Handle(context.Background(), msg)
 	}
 }
+
+func TestMessageText(t *testing.T) {
+	cases := []struct {
+		name string
+		msg  *models.Message
+		want string
+	}{
+		{"текст", &models.Message{Text: " привет "}, "привет"},
+		{"подпись к фото", &models.Message{Caption: "подпись"}, "подпись"},
+		{"пусто", &models.Message{}, ""},
+		{"nil", nil, ""},
+	}
+
+	for _, item := range cases {
+		if got := messageText(item.msg); got != item.want {
+			t.Errorf("%s: messageText = %q, хотели %q", item.name, got, item.want)
+		}
+	}
+}
