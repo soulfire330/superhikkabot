@@ -55,10 +55,6 @@ func (r *Runner) Deploy(ctx context.Context, note string) (string, error) {
 		return "", fmt.Errorf("не смог поставить новый бинарник: %w", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(filepath.Dir(exe), pendingMarker), []byte("1"), 0o644); err != nil {
-		return "", fmt.Errorf("маркер перезапуска: %w", err)
-	}
-
 	r.logger.Printf("harness: перезапуск в новый бинарник %s", exe)
 	return "Перезапускаюсь с новым бинарником.", Exec(exe)
 }
@@ -74,7 +70,9 @@ func (r *Runner) command(ctx context.Context, bin string, args ...string) error 
 	return nil
 }
 
-// CheckBoot откатывается на прошлый бинарник, если предыдущий запуск не дожил до MarkBooted.
+// CheckBoot чистит маркеры прошлых версий. Авто-откат на bot.prev отключён:
+// Deploy писал маркер перед Exec, и CheckBoot в новом процессе принимал его за
+// падение — каждый деплой откатывался назад. Откат теперь ручной: bin/bot.prev.
 func CheckBoot() error {
 	exe, err := os.Executable()
 	if err != nil {
@@ -86,25 +84,9 @@ func CheckBoot() error {
 	}
 
 	dir := filepath.Dir(exe)
-	pending := filepath.Join(dir, pendingMarker)
-	if _, err := os.Stat(pending); err != nil {
-		return nil
-	}
-
-	// Уже работаем откаченным бинарником: второй откат не нужен.
-	if filepath.Base(exe) == prevBinary {
-		_ = os.Remove(pending)
-		return nil
-	}
-
-	previous := filepath.Join(dir, prevBinary)
-	if _, err := os.Stat(previous); err != nil {
-		_ = os.Remove(pending)
-		return nil
-	}
-
-	_ = os.Rename(pending, filepath.Join(dir, rollbackMarker))
-	return Exec(previous)
+	_ = os.Remove(filepath.Join(dir, pendingMarker))
+	_ = os.Remove(filepath.Join(dir, rollbackMarker))
+	return nil
 }
 
 // MarkBooted снимает маркеры: процесс дожил до рабочего состояния.
