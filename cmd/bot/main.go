@@ -212,6 +212,21 @@ func main() {
 		Logger:  logger,
 	})
 
+	// Отчёт о самоперезапуске: правит сообщение, оставленное командой deploy.
+	if note, ok := harness.LoadDeployNote(); ok {
+		reportCtx, reportCancel := context.WithTimeout(rootCtx, 20*time.Second)
+		text := "✅ Деплой прошёл — работаю на новом бинарнике"
+		if runner != nil {
+			if head := runner.Head(reportCtx); head != "" {
+				text += " (" + head + ")"
+			}
+		}
+		if _, err := tgClient.Replace(reportCtx, note.ChatID, note.MessageID, text); err != nil {
+			logger.Printf("отчёт о деплое: %v", err)
+		}
+		reportCancel()
+	}
+
 	// Маркер снимаем после GetMe: до этого места бот не умеет ничего, и падение
 	// здесь — показание откатиться на прошлый бинарник.
 	harness.MarkBooted()

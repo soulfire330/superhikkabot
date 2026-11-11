@@ -59,6 +59,17 @@ func (r *Runner) Deploy(ctx context.Context, note string) (string, error) {
 	return "Перезапускаюсь с новым бинарником.", Exec(exe)
 }
 
+// Head возвращает короткий хеш HEAD рабочей копии — для отчёта о деплое.
+func (r *Runner) Head(ctx context.Context) string {
+	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--short", "HEAD")
+	cmd.Dir = r.cfg.Workspace
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
 func (r *Runner) command(ctx context.Context, bin string, args ...string) error {
 	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Dir = r.cfg.Workspace

@@ -248,20 +248,39 @@ func (b *Bot) manualDeploy(ctx context.Context, msg *models.Message) {
 	}
 
 	b.deps.TG.Typing(ctx, msg.Chat.ID)
-	b.send(ctx, msg, "Собираю себя с текущими правками…")
 
-	go func(chatID int64) {
+	ids, err := b.deps.TG.Send(ctx, msg.Chat.ID, msg.ID, "Собираю себя с текущими правками…")
+	placeholder := 0
+	if err != nil {
+		b.deps.Logger.Printf("telegram: отправка не удалась: %v", err)
+	}
+	if len(ids) > 0 {
+		placeholder = ids[0]
+	}
+	if placeholder != 0 {
+		if err := harness.SaveDeployNote(harness.DeployNote{ChatID: msg.Chat.ID, MessageID: placeholder}); err != nil {
+			b.deps.Logger.Printf("deploy: записка: %v", err)
+		}
+	}
+
+	go func(chatID int64, messageID int) {
 		dctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 		defer cancel()
 
 		result, err := b.deps.Harness.Deploy(dctx, "manual deploy")
 		if err != nil {
 			b.deps.Logger.Printf("deploy: %v", err)
-			_, _ = b.deps.TG.Send(dctx, chatID, 0, "⚠️ "+tg.Escape(err.Error()))
+			harness.ClearDeployNote()
+			text := "⚠️ Сборка не прошла: " + tg.Escape(err.Error())
+			if messageID != 0 {
+				_, _ = b.deps.TG.Replace(dctx, chatID, messageID, text)
+			} else {
+				_, _ = b.deps.TG.Send(dctx, chatID, 0, text)
+			}
 			return
 		}
 		b.deps.Logger.Printf("deploy: %s", result)
-	}(msg.Chat.ID)
+	}(msg.Chat.ID, placeholder)
 }
 
 func (b *Bot) digest(ctx context.Context, msg *models.Message, argument string) {
