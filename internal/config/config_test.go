@@ -22,6 +22,9 @@ model = "test-model"
 
 [media]
 timeout = "3m"
+
+[proxy]
+digest = "http://127.0.0.1:3128"
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
@@ -50,6 +53,9 @@ timeout = "3m"
 	}
 	if got := Duration(cfg.Media.Timeout, time.Minute); got != 3*time.Minute {
 		t.Errorf("timeout = %v, ждали 3m", got)
+	}
+	if cfg.Proxy.Digest != "http://127.0.0.1:3128" {
+		t.Errorf("прокси digest = %q", cfg.Proxy.Digest)
 	}
 	// Незаданные поля остаются дефолтными.
 	if cfg.Video.Frames != 5 || cfg.Digest.Language != "ru" {

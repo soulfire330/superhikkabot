@@ -55,8 +55,10 @@ collage_max = 30
 [proxy]
 # Пусто — прямое соединение. Поддержаны http://, https://, socks5://, socks5h://
 # (в socks5 имя хоста резолвит прокси).
-# llm — для LLM, Firecrawl и дайджеста ссылок; telegram — для Bot API и скачивания файлов.
+# llm — для LLM и Firecrawl; digest — для загрузки YouTube/страниц/GitHub в tldr;
+# telegram — для Bot API и скачивания файлов.
 # llm = "socks5://127.0.0.1:1080"
+# digest = "http://127.0.0.1:3128"
 # telegram = "http://127.0.0.1:3128"
 
 [harness]

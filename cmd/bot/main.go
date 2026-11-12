@@ -56,6 +56,10 @@ func main() {
 	if err != nil {
 		logger.Fatalf("прокси llm: %v", err)
 	}
+	digestTransport, err := proxy.Transport(cfg.Proxy.Digest)
+	if err != nil {
+		logger.Fatalf("прокси digest: %v", err)
+	}
 	telegramTransport, err := proxy.Transport(cfg.Proxy.Telegram)
 	if err != nil {
 		logger.Fatalf("прокси telegram: %v", err)
@@ -63,8 +67,14 @@ func main() {
 	contentHTTP := func(timeout time.Duration) *http.Client {
 		return &http.Client{Transport: contentTransport, Timeout: timeout}
 	}
+	digestHTTP := func(timeout time.Duration) *http.Client {
+		return &http.Client{Transport: digestTransport, Timeout: timeout}
+	}
 	if cfg.Proxy.LLM != "" {
 		logger.Printf("прокси llm: %s", cfg.Proxy.LLM)
+	}
+	if cfg.Proxy.Digest != "" {
+		logger.Printf("прокси digest: %s", cfg.Proxy.Digest)
 	}
 	if cfg.Proxy.Telegram != "" {
 		logger.Printf("прокси telegram: %s", cfg.Proxy.Telegram)
@@ -119,7 +129,7 @@ func main() {
 			WithReasoning("none"),
 		crawl,
 		cfg.Digest.Language,
-	).WithHTTPClient(contentHTTP(30 * time.Second))
+	).WithHTTPClient(digestHTTP(30 * time.Second))
 
 	llmClient := llm.New(cfg.LLM.URL, cfg.LLM.APIKey, cfg.LLM.Model, crawl.Tool(), digestClient.Tool()).
 		WithHTTPClient(contentHTTP(2 * time.Minute)).

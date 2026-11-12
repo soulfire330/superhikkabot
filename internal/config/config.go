@@ -27,6 +27,7 @@ type Config struct {
 // Proxy — адреса прокси. Пустое поле означает прямое соединение.
 type Proxy struct {
 	LLM      string `toml:"llm"`
+	Digest   string `toml:"digest"`
 	Telegram string `toml:"telegram"`
 }
 
