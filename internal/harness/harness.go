@@ -39,6 +39,10 @@ type Config struct {
 	SessionDir string
 	Timeout    time.Duration
 	Deploy     bool
+	// Firecrawl — тот же веб-поиск/scrape, что у бота: агент видит его как
+	// инструменты расширения pi-firecrawl.
+	FirecrawlURL string
+	FirecrawlKey string
 }
 
 // Runner держит по одному процессу pi на чат.
@@ -334,7 +338,7 @@ func (r *Runner) spawn(chatID int64) (*proc, error) {
 
 	cmd := exec.Command(r.cfg.Binary, args...)
 	cmd.Dir = r.cfg.Workspace
-	cmd.Env = agentEnv()
+	cmd.Env = agentEnv(r.cfg)
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -475,8 +479,9 @@ func messageText(raw json.RawMessage) string {
 	return strings.TrimSpace(strings.Join(parts, "\n"))
 }
 
-// agentEnv оставляет агенту PATH, HOME и ключи провайдеров, но не секреты бота.
-func agentEnv() []string {
+// agentEnv оставляет агенту PATH, HOME, ключи провайдеров и доступ к веб-поиску
+// (Firecrawl), но не остальные секреты бота.
+func agentEnv(cfg Config) []string {
 	env := []string{
 		"PATH=" + os.Getenv("PATH"),
 		"HOME=" + os.Getenv("HOME"),
@@ -488,6 +493,14 @@ func agentEnv() []string {
 		if value := os.Getenv(key); value != "" {
 			env = append(env, key+"="+value)
 		}
+	}
+
+	// pi-firecrawl читает эти переменные при загрузке расширения.
+	if cfg.FirecrawlKey != "" {
+		env = append(env, "FIRECRAWL_API_KEY="+cfg.FirecrawlKey)
+	}
+	if cfg.FirecrawlURL != "" {
+		env = append(env, "FIRECRAWL_API_URL="+cfg.FirecrawlURL)
 	}
 
 	return env

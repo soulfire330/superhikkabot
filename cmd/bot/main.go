@@ -202,11 +202,13 @@ func main() {
 	var runner *harness.Runner
 	if cfg.Harness.Enabled {
 		runner = harness.New(harness.Config{
-			Binary:     cfg.Harness.Binary,
-			Workspace:  cfg.Harness.Workspace,
-			SessionDir: cfg.Harness.SessionDir,
-			Timeout:    config.Duration(cfg.Harness.Timeout, 20*time.Minute),
-			Deploy:     cfg.Harness.Deploy,
+			Binary:       cfg.Harness.Binary,
+			Workspace:    cfg.Harness.Workspace,
+			SessionDir:   cfg.Harness.SessionDir,
+			Timeout:      config.Duration(cfg.Harness.Timeout, 20*time.Minute),
+			Deploy:       cfg.Harness.Deploy,
+			FirecrawlURL: cfg.Firecrawl.BaseURL,
+			FirecrawlKey: cfg.Firecrawl.APIKey,
 		}, logger)
 		defer runner.Stop()
 	}

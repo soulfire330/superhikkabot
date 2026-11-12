@@ -206,3 +206,35 @@ func TestToolDetailPicksSpeakingField(t *testing.T) {
 		}
 	}
 }
+
+func TestAgentEnvPassesFirecrawl(t *testing.T) {
+	t.Setenv("OPENCODE_API_KEY", "sk-test")
+
+	env := agentEnv(Config{
+		FirecrawlURL: "http://10.20.20.34:3002",
+		FirecrawlKey: "fc-local",
+	})
+	joined := "\n" + strings.Join(env, "\n") + "\n"
+
+	for _, want := range []string{
+		"OPENCODE_API_KEY=sk-test",
+		"FIRECRAWL_API_KEY=fc-local",
+		"FIRECRAWL_API_URL=http://10.20.20.34:3002",
+	} {
+		if !strings.Contains(joined, "\n"+want+"\n") {
+			t.Errorf("нет %q в окружении агента: %v", want, env)
+		}
+	}
+	if strings.Contains(joined, "\nTELEGRAM_BOT_TOKEN=") {
+		t.Error("секрет бота утёк агенту")
+	}
+}
+
+func TestAgentEnvSkipsEmptyFirecrawl(t *testing.T) {
+	env := agentEnv(Config{})
+	for _, item := range env {
+		if strings.HasPrefix(item, "FIRECRAWL_") {
+			t.Errorf("лишняя переменная без конфига: %q", item)
+		}
+	}
+}

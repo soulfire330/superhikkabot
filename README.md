@@ -59,6 +59,12 @@ gallery-dl) — это отдельная настройка.
 того же окружения: `internal/harness` передаёт агенту только их, `PATH` и `HOME`,
 а токен бота и прочие секреты ему не видны.
 
+Веб-поиск у агента — расширение [`pi-firecrawl`](https://github.com/firecrawl/pi-firecrawl)
+(`firecrawl_search`, `firecrawl_scrape`, `firecrawl_map`, …). Оно ставится в
+`$HOME/.pi` (`HOME` юнита — `data/home`) и читает `FIRECRAWL_API_KEY` и
+`FIRECRAWL_API_URL`; `internal/harness` передаёт их из `[firecrawl]` конфига, так
+что агент ходит в тот же Firecrawl, что и бот.
+
 ## Установка в LXC
 
 Что нужно на хосте-контейнере:
