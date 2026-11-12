@@ -203,8 +203,8 @@ func (b *Bot) dev(ctx context.Context, msg *models.Message, task string) {
 
 	// Каждый dev — новая pi-сессия; реплай на ответ её продолжит.
 	prompt := devPrompt(msg, task)
-	if !b.agentRun(ctx, msg, func() (harness.Reply, error) {
-		return b.deps.Harness.Run(ctx, msg.Chat.ID, prompt)
+	if !b.agentRun(ctx, msg, func(progress harness.ProgressFunc) (harness.Reply, error) {
+		return b.deps.Harness.RunWithProgress(ctx, msg.Chat.ID, prompt, progress)
 	}) {
 		return
 	}
@@ -251,8 +251,8 @@ func (b *Bot) continueSession(ctx context.Context, msg *models.Message, text str
 		return false
 	}
 
-	if !b.agentRun(ctx, msg, func() (harness.Reply, error) {
-		return b.deps.Harness.Continue(ctx, msg.Chat.ID, session, prompt)
+	if !b.agentRun(ctx, msg, func(progress harness.ProgressFunc) (harness.Reply, error) {
+		return b.deps.Harness.ContinueWithProgress(ctx, msg.Chat.ID, session, prompt, progress)
 	}) {
 		return true
 	}
@@ -264,13 +264,16 @@ func (b *Bot) continueSession(ctx context.Context, msg *models.Message, text str
 	return true
 }
 
-// agentRun показывает Working…, гоняет агента и переписывает заглушку ответом.
+// agentRun показывает живой статус, гоняет агента и переписывает заглушку ответом.
+// Статус обновляется по событиям pi: что агент читает, правит и запускает.
 // Возвращает false, если прогон провалился.
-func (b *Bot) agentRun(ctx context.Context, msg *models.Message, run func() (harness.Reply, error)) bool {
+func (b *Bot) agentRun(ctx context.Context, msg *models.Message, run func(harness.ProgressFunc) (harness.Reply, error)) bool {
 	b.deps.TG.Typing(ctx, msg.Chat.ID)
-	placeholder := b.sendStatus(ctx, msg, "Working…")
+	placeholder := b.sendStatus(ctx, msg, "⏳ Working…")
 
-	reply, err := run()
+	status := newRunStatus(ctx, b, msg.Chat.ID, placeholder)
+	reply, err := run(status.Report)
+	status.Stop()
 	if err != nil {
 		b.replaceOrSend(ctx, msg, placeholder, "⚠️ "+tg.Escape(err.Error()))
 		return false

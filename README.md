@@ -96,6 +96,13 @@ systemctl enable --now superhikkabot
 2. бот гоняет `go vet ./...` и `go build -o bin/bot.new ./cmd/bot`;
 3. при успехе: `bin/bot` → `bin/bot.prev`, новый бинарник на место, маркер `bin/boot.pending`, `syscall.Exec`.
 
+Пока агент работает, сообщение-заглушка живёт: `internal/harness` отдаёт события
+pi (`tool_execution_start/end`, `thinking_start`, `text_start`) через `ProgressFunc`,
+а `internal/bot/status.go` перерисовывает её не чаще раза в 1,5 с — «🔧 running
+<code>go test ./...</code>», «✏️ editing <code>internal/bot/status.go</code>»,
+«💬 writing the answer…» — и по таймеру каждые 5 с показывает, сколько уже идёт
+прогон.
+
 Если `go vet` или сборка не прошли — бот остаётся на старом бинарнике и пишет причину
 в чат. Если новый бинарник упал до рабочего состояния, при следующем старте
 `harness.CheckBoot` уводит процесс на `bin/bot.prev` и снимает маркер. Для этого у

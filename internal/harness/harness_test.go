@@ -130,3 +130,79 @@ func TestMessageTextHandlesPlainString(t *testing.T) {
 		t.Errorf("получили %q", got)
 	}
 }
+
+func TestRunnerReportsProgress(t *testing.T) {
+	body := `#!/bin/sh
+while IFS= read -r line; do
+  id=$(printf '%s' "$line" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+  case "$line" in
+    *'"type":"new_session"'*)
+      printf '{"id":"%s","type":"response","command":"new_session","success":true}\n' "$id" ;;
+    *'"type":"get_state"'*)
+      printf '{"id":"%s","type":"response","command":"get_state","success":true,"data":{"sessionFile":"/tmp/pi-tg-test.jsonl"}}\n' "$id" ;;
+    *)
+      printf '{"id":"%s","type":"response","command":"prompt","success":true}\n' "$id"
+      printf '%s\n' '{"type":"agent_start"}'
+      printf '%s\n' '{"type":"turn_start"}'
+      printf '%s\n' '{"type":"tool_execution_start","toolCallId":"c1","toolName":"bash","args":{"command":"go test\n ./..."}}'
+      printf '%s\n' '{"type":"tool_execution_end","toolCallId":"c1","toolName":"bash","isError":false,"durationMs":1200}'
+      printf '%s\n' '{"type":"tool_execution_start","toolCallId":"c2","toolName":"edit","args":{"path":"internal/bot/status.go"}}'
+      printf '%s\n' '{"type":"tool_execution_end","toolCallId":"c2","toolName":"edit","isError":true,"durationMs":30}'
+      printf '%s\n' '{"type":"message_update","assistantMessageEvent":{"type":"thinking_start","contentIndex":0}}'
+      printf '%s\n' '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"готово"}]}}'
+      printf '%s\n' '{"type":"agent_settled","aborted":false}' ;;
+  esac
+done
+`
+	runner := New(Config{Binary: writeFake(t, body), Timeout: 5 * time.Second}, log.New(os.Stderr, "", 0))
+	defer runner.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var events []Progress
+	reply, err := runner.RunWithProgress(ctx, 3, "задача", func(p Progress) {
+		events = append(events, p)
+	})
+	if err != nil {
+		t.Fatalf("RunWithProgress: %v", err)
+	}
+	if reply.Text != "готово" {
+		t.Errorf("ответ %q", reply.Text)
+	}
+
+	want := []Progress{
+		{Kind: "start"},
+		{Kind: "turn"},
+		{Kind: "tool", Tool: "bash", Detail: "go test ./..."},
+		{Kind: "tool_done", Tool: "bash", DurationMs: 1200},
+		{Kind: "tool", Tool: "edit", Detail: "internal/bot/status.go"},
+		{Kind: "tool_done", Tool: "edit", Failed: true, DurationMs: 30},
+		{Kind: "thinking"},
+	}
+	if len(events) != len(want) {
+		t.Fatalf("события %+v, хотим %+v", events, want)
+	}
+	for i := range want {
+		if events[i] != want[i] {
+			t.Errorf("событие %d: %+v, хотим %+v", i, events[i], want[i])
+		}
+	}
+}
+
+func TestToolDetailPicksSpeakingField(t *testing.T) {
+	cases := map[string]string{
+		`{"command":"go  test\n./..."}`:  "go test ./...",
+		`{"path":"internal/bot/bot.go"}`: "internal/bot/bot.go",
+		`{"file_path":"README.md"}`:      "README.md",
+		`{"pattern":"Working"}`:          "Working",
+		`{"url":"https://example.com"}`:  "https://example.com",
+		`{"unknown":"ignored"}`:          "",
+		`[]`:                             "",
+	}
+	for args, want := range cases {
+		if got := toolDetail([]byte(args)); got != want {
+			t.Errorf("toolDetail(%s) = %q, хотим %q", args, got, want)
+		}
+	}
+}

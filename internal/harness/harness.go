@@ -63,17 +63,24 @@ type proc struct {
 }
 
 type record struct {
-	ID      string          `json:"id"`
-	Type    string          `json:"type"`
-	Command string          `json:"command"`
-	Success *bool           `json:"success"`
-	Error   string          `json:"error"`
-	Data    json.RawMessage `json:"data"`
-	Aborted bool            `json:"aborted"`
-	Message struct {
+	ID         string          `json:"id"`
+	Type       string          `json:"type"`
+	Command    string          `json:"command"`
+	Success    *bool           `json:"success"`
+	Error      string          `json:"error"`
+	Data       json.RawMessage `json:"data"`
+	Aborted    bool            `json:"aborted"`
+	ToolName   string          `json:"toolName"`
+	Args       json.RawMessage `json:"args"`
+	IsError    bool            `json:"isError"`
+	DurationMs int64           `json:"durationMs"`
+	Message    struct {
 		Role    string          `json:"role"`
 		Content json.RawMessage `json:"content"`
 	} `json:"message"`
+	AssistantMessageEvent struct {
+		Type string `json:"type"`
+	} `json:"assistantMessageEvent"`
 }
 
 // New собирает раннер.
@@ -102,20 +109,43 @@ type Reply struct {
 	SessionPath string
 }
 
+// Progress — событие прогона агента, из которого бот рисует живую строку статуса.
+type Progress struct {
+	Kind       string // start, thinking, answer, turn, tool, tool_done
+	Tool       string
+	Detail     string
+	Failed     bool
+	DurationMs int64
+}
+
+// ProgressFunc получает прогресс по мере того, как pi шлёт события.
+// Вызывается синхронно из ожидания прогона: колбэк должен быть быстрым.
+type ProgressFunc func(Progress)
+
 // Run начинает новую pi-сессию, отправляет задачу и ждёт финальный текст.
 func (r *Runner) Run(ctx context.Context, chatID int64, prompt string) (Reply, error) {
-	return r.runIn(ctx, chatID, "", prompt)
+	return r.runIn(ctx, chatID, "", prompt, nil)
+}
+
+// RunWithProgress — то же, что Run, но с отчётом о ходе работы.
+func (r *Runner) RunWithProgress(ctx context.Context, chatID int64, prompt string, progress ProgressFunc) (Reply, error) {
+	return r.runIn(ctx, chatID, "", prompt, progress)
 }
 
 // Continue продолжает конкретную сессию — так реплай возвращается в свой dev-ран.
 func (r *Runner) Continue(ctx context.Context, chatID int64, sessionPath, prompt string) (Reply, error) {
+	return r.ContinueWithProgress(ctx, chatID, sessionPath, prompt, nil)
+}
+
+// ContinueWithProgress — то же, что Continue, но с отчётом о ходе работы.
+func (r *Runner) ContinueWithProgress(ctx context.Context, chatID int64, sessionPath, prompt string, progress ProgressFunc) (Reply, error) {
 	if strings.TrimSpace(sessionPath) == "" {
 		return Reply{}, errors.New("pi: empty session path")
 	}
-	return r.runIn(ctx, chatID, sessionPath, prompt)
+	return r.runIn(ctx, chatID, sessionPath, prompt, progress)
 }
 
-func (r *Runner) runIn(ctx context.Context, chatID int64, sessionPath, prompt string) (Reply, error) {
+func (r *Runner) runIn(ctx context.Context, chatID int64, sessionPath, prompt string, progress ProgressFunc) (Reply, error) {
 	r.run.Lock()
 	defer r.run.Unlock()
 
@@ -150,7 +180,7 @@ func (r *Runner) runIn(ctx context.Context, chatID int64, sessionPath, prompt st
 		return Reply{}, fmt.Errorf("pi: sending the task: %w", err)
 	}
 
-	answer, err := r.wait(ctx, chatID, process)
+	answer, err := r.wait(ctx, chatID, process, progress)
 	if err != nil {
 		return Reply{}, err
 	}
@@ -216,8 +246,14 @@ func (r *Runner) sessionFile(ctx context.Context, chatID int64, process *proc) (
 	return state.SessionFile, nil
 }
 
-func (r *Runner) wait(ctx context.Context, chatID int64, process *proc) (string, error) {
+func (r *Runner) wait(ctx context.Context, chatID int64, process *proc, progress ProgressFunc) (string, error) {
 	var answer string
+
+	emit := func(p Progress) {
+		if progress != nil {
+			progress(p)
+		}
+	}
 
 	for {
 		select {
@@ -230,6 +266,21 @@ func (r *Runner) wait(ctx context.Context, chatID int64, process *proc) (string,
 
 		case event := <-process.events:
 			switch event.Type {
+			case "agent_start":
+				emit(Progress{Kind: "start"})
+			case "turn_start":
+				emit(Progress{Kind: "turn"})
+			case "message_update":
+				switch event.AssistantMessageEvent.Type {
+				case "thinking_start":
+					emit(Progress{Kind: "thinking"})
+				case "text_start":
+					emit(Progress{Kind: "answer"})
+				}
+			case "tool_execution_start":
+				emit(Progress{Kind: "tool", Tool: event.ToolName, Detail: toolDetail(event.Args)})
+			case "tool_execution_end":
+				emit(Progress{Kind: "tool_done", Tool: event.ToolName, Failed: event.IsError, DurationMs: event.DurationMs})
 			case "response":
 				if event.Success != nil && !*event.Success {
 					return "", fmt.Errorf("pi: %s", strings.TrimSpace(event.Error))
@@ -370,6 +421,31 @@ func (r *Runner) Stop() {
 	}
 }
 
+// toolDetail достаёт из аргументов инструмента самое говорящее поле:
+// команду, путь, шаблон или запрос. Многострочное схлопывается в одну строку.
+func toolDetail(args json.RawMessage) string {
+	if len(args) == 0 {
+		return ""
+	}
+
+	var fields map[string]any
+	if json.Unmarshal(args, &fields) != nil {
+		return ""
+	}
+
+	for _, key := range []string{"command", "path", "file_path", "filePath", "pattern", "query", "url", "description", "prompt"} {
+		value, ok := fields[key].(string)
+		if !ok {
+			continue
+		}
+		value = strings.Join(strings.Fields(value), " ")
+		if value != "" {
+			return clip(value, 200)
+		}
+	}
+	return ""
+}
+
 // messageText вытаскивает текст из content: строка или блоки.
 func messageText(raw json.RawMessage) string {
 	if len(raw) == 0 {
@@ -415,6 +491,14 @@ func agentEnv() []string {
 	}
 
 	return env
+}
+
+func clip(s string, limit int) string {
+	runes := []rune(s)
+	if len(runes) <= limit {
+		return s
+	}
+	return string(runes[:limit]) + "…"
 }
 
 func tail(s string, limit int) string {
