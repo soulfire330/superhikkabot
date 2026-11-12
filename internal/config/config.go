@@ -75,6 +75,7 @@ type Video struct {
 	MaxDuration int    `toml:"max_duration"`
 	GroqURL     string `toml:"groq_url"`
 	GroqModel   string `toml:"groq_model"`
+	GroqProxy   string `toml:"groq_proxy"`
 	GroqKey     string `toml:"-"`
 }
 

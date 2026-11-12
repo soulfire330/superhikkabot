@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/soulfire330/superhikkabot/internal/proxy"
 )
 
 const (
@@ -29,7 +32,8 @@ type Transcriber struct {
 }
 
 // NewTranscriber собирает клиент; пустой ключ делает распознавание выключенным.
-func NewTranscriber(apiKey, baseURL, model string) *Transcriber {
+// proxyURL непустой — трафик Groq идёт через прокси (Groq блокирует РФ по IP).
+func NewTranscriber(apiKey, baseURL, model, proxyURL string) *Transcriber {
 	if baseURL == "" {
 		baseURL = "https://api.groq.com/openai/v1"
 	}
@@ -37,11 +41,21 @@ func NewTranscriber(apiKey, baseURL, model string) *Transcriber {
 		model = "whisper-large-v3"
 	}
 
+	client := &http.Client{Timeout: groqTimeout}
+	if proxyURL != "" {
+		transport, err := proxy.Transport(proxyURL)
+		if err != nil {
+			log.Printf("groq: прокси %q не поднялся: %v", proxyURL, err)
+		} else {
+			client.Transport = transport
+		}
+	}
+
 	return &Transcriber{
 		apiKey:  apiKey,
 		baseURL: strings.TrimRight(baseURL, "/"),
 		model:   model,
-		client:  &http.Client{Timeout: groqTimeout},
+		client:  client,
 	}
 }
 

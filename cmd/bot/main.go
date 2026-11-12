@@ -153,7 +153,7 @@ func main() {
 
 		videoService = video.NewService(
 			videoStore,
-			video.NewTranscriber(cfg.Video.GroqKey, cfg.Video.GroqURL, cfg.Video.GroqModel),
+			video.NewTranscriber(cfg.Video.GroqKey, cfg.Video.GroqURL, cfg.Video.GroqModel, cfg.Video.GroqProxy),
 			logger,
 		)
 	}
